@@ -22,8 +22,10 @@ void Scene::createBoxes()
 	const glm::vec3 darkPlastic = { 0.10f, 0.11f, 0.13f };
 	const glm::vec3 wood = { 0.42f, 0.28f, 0.17f };
 
+	const glm::vec3 center = { 0.0f, -0.05f, 0.0f };
+	const glm::vec3 roomSize = { 24.0f, 0.1f, 24.0f };
 	// Floor, faintly reflective so the reflection bounce has something to show.
-	boxes_.push_back({ "floor", { 0.0f, -0.05f, 0.0f }, { 24.0f, 0.1f, 24.0f }, { 0.55f, 0.55f, 0.58f }, 0.10f });
+	boxes_.push_back({ "floor", center, roomSize, { 0.55f, 0.55f, 0.58f }, 0.10f });
 
 	// Table: a top slab on four legs.
 	boxes_.push_back({ "table_top", { 0.0f, table_top_y - 0.04f, 0.0f }, { table_half_width * 2.0f, 0.08f, table_half_depth * 2.0f }, wood, 0.03f });
@@ -85,12 +87,17 @@ void Scene::createBoxes()
 
 	const float buttonY = consoleTopY - buttonSize.y * 0.5f + proud;
 
-	boxes_.push_back({ "button_left",   { buttonSpacing * -2.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_right",  { buttonSpacing * -1.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_rotate", { buttonSpacing * -0.5f, buttonY, buttonRowZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
-	boxes_.push_back({ "button_down",   { buttonSpacing *  0.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_pause",  { buttonSpacing *  1.5f, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
-	boxes_.push_back({ "button_start",  { buttonSpacing *  2.5f, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
+	boxes_.push_back({ "button_left",	{ buttonSpacing * -2.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_right",	{ buttonSpacing * -1.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_rotate",	{ buttonSpacing * -0.5f, buttonY, buttonRowZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
+	boxes_.push_back({ "button_down",	{ buttonSpacing *  0.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_pause",	{ buttonSpacing *  1.5f, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
+	boxes_.push_back({ "button_start",	{ buttonSpacing *  2.5f, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
+
+	const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, center.z) + 
+											glm::vec3(roomSize.x, 0.0f, roomSize.z) / 3.0f + 
+											glm::vec3(0.0f, legHeight, 0.0f);
+	boxes_.push_back({ "floor_lamp_stand", centerFloorLampStand, {0.10f, legHeight * 2.0f, 0.10f}, wood, 0.08f });
 
 	// Only the table blocks movement; everything else stands on top of it.
 	blockers_.clear();
