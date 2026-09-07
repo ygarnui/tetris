@@ -1,0 +1,12 @@
+# Build output
+build/
+out/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Runtime shader cache
+shader_cache/
+*.cache
