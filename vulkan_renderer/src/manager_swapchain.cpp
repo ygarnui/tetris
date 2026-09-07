@@ -114,6 +114,9 @@ namespace render
 			}
 		}
 
+		// No image has been drawn into yet, so nothing has to be waited on before reusing one.
+		swapchain_data_[newId].images_in_flight_.assign(swapchain_data_[newId].swapchain_detail_.num_images, VK_NULL_HANDLE);
+
 		swapchain_data_[newId].fences_.resize(swapchain_data_[newId].swapchain_detail_.num_frames_in_flight);
 		swapchain_data_[newId].available_semaphores_.resize(swapchain_data_[newId].swapchain_detail_.num_frames_in_flight);
 		swapchain_data_[newId].finished_semaphores_.resize(swapchain_data_[newId].swapchain_detail_.num_frames_in_flight);
@@ -153,6 +156,9 @@ namespace render
 		detailSwapchain.num_frames_in_flight = numImages;
 
 		auto& newSwapchain = swapchain_data_[newId].swapchain_detail_ = detailSwapchain;
+
+		// No image has been drawn into yet, so nothing has to be waited on before reusing one.
+		swapchain_data_[newId].images_in_flight_.assign(swapchain_data_[newId].swapchain_detail_.num_images, VK_NULL_HANDLE);
 
 		swapchain_data_[newId].fences_.resize(swapchain_data_[newId].swapchain_detail_.num_frames_in_flight);
 		swapchain_data_[newId].available_semaphores_.resize(swapchain_data_[newId].swapchain_detail_.num_frames_in_flight);
@@ -195,6 +201,28 @@ namespace render
 	std::shared_ptr<DataFence> ManagerSwapchain::GetFence(const SwapchainId& swapchainId, const uint32_t index) const
 	{
 		return swapchain_data_[swapchainId].fences_[index];
+	}
+
+	VkFence ManagerSwapchain::GetImageInFlightFence(const SwapchainId& swapchainId, const uint32_t imageIndex) const
+	{
+		const auto& imagesInFlight = swapchain_data_[swapchainId].images_in_flight_;
+
+		if (imageIndex >= imagesInFlight.size())
+		{
+			return VK_NULL_HANDLE;
+		}
+
+		return imagesInFlight[imageIndex];
+	}
+
+	void ManagerSwapchain::SetImageInFlightFence(const SwapchainId& swapchainId, const uint32_t imageIndex, VkFence fence)
+	{
+		auto& imagesInFlight = swapchain_data_[swapchainId].images_in_flight_;
+
+		if (imageIndex < imagesInFlight.size())
+		{
+			imagesInFlight[imageIndex] = fence;
+		}
 	}
 
 	std::shared_ptr<DataSemaphore> ManagerSwapchain::GetAvailableSemaphore(const SwapchainId& swapchainId, const uint32_t index) const
@@ -251,7 +279,17 @@ namespace render
 		const auto ratio = swapchainDetail.ratio;
 		auto extent = swapchainDetail.source_extent;
 		extent = { uint32_t(extent.width * ratio), uint32_t(extent.height * ratio) };
-		swapchainDetail.current_extent = SelectorSwapchainSettings::ChooseSwapExtent(swapChainSupport.capabilities, extent);
+		const VkExtent2D newExtent = SelectorSwapchainSettings::ChooseSwapExtent(swapChainSupport.capabilities, extent);
+
+		// A minimised window reports a zero surface extent, which no swapchain can be created
+		// with. Keep the current one until the window comes back and try again then.
+		if (newExtent.width == 0 || newExtent.height == 0)
+		{
+			LOG(Loglvl::info, "[ManagerSwapchain::RecreateSwapchain] the window has no area, keeping the current swapchain");
+			return;
+		}
+
+		swapchainDetail.current_extent = newExtent;
 
 		swapchain.swapchain_ = nullptr;
 		swapchain.swapchain_ = CreatorSwapchain::CreateSwapchain(
@@ -265,6 +303,9 @@ namespace render
 		swapchain.swapchain_images_ = CreatorImages::CreateImages(logicalDevice, swapchain.swapchain_);
 
 		swapchain.swapchain_detail_.num_images = static_cast<uint32_t>(swapchain.swapchain_images_.size());
+
+		// The images are new, so nothing is in flight for any of them.
+		swapchain.images_in_flight_.assign(swapchain.swapchain_detail_.num_images, VK_NULL_HANDLE);
 
 		VkComponentMapping components = {
 			VkComponentSwizzle::VK_COMPONENT_SWIZZLE_R,

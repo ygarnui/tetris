@@ -28,6 +28,15 @@ namespace
 	constexpr uint32_t initial_height = 720;
 
 	/*!
+	\brief What the GLFW resize callback needs to reach the renderer.
+	*/
+	struct WindowContext
+	{
+		render::RenderBase* render_base = nullptr;
+		render::GraphicsWindowId window_id;
+	};
+
+	/*!
 	\brief Collect the instance extensions GLFW needs to present into its window.
 	*/
 	std::vector<const char*> glfwInstanceExtensions()
@@ -111,23 +120,6 @@ int main()
 		tetris::Camera camera;
 		camera.SetBlockers(scene.GetBlockers());
 
-		// One camera buffer per swapchain image, so a frame still in flight is never overwritten.
-		const uint32_t numImages = managerSwapchain->GetNumImages(swapchainId);
-
-		std::vector<render::BufferWithMemory> cameraBuffers(numImages);
-		std::vector<std::shared_ptr<render::DataBuffer>> cameraBufferHandles(numImages);
-
-		for (uint32_t i = 0; i < numImages; ++i)
-		{
-			cameraBuffers[i] = render::CreatorAccelerationStructure::CreateDeviceAddressBuffer(
-				buildContext,
-				nullptr,
-				sizeof(shaders::RtCamera),
-				VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
-
-			cameraBufferHandles[i] = cameraBuffers[i].buffer;
-		}
-
 		const std::vector<description::ShaderDescription> shaderDescriptions = {
 			{ "raytracing.rgen",  description::ShaderType::RAY_GENERATION,  {} },
 			{ "raytracing.rmiss", description::ShaderType::RAY_MISS,        {} },
@@ -141,7 +133,9 @@ int main()
 		passDescription.window_id = windowId;
 		passDescription.shader_program_id = shaderProgramId;
 		passDescription.top_level = scene.GetTopLevel();
-		passDescription.camera_buffers = cameraBufferHandles;
+		// The pass owns one buffer of this size per swapchain image and reallocates them
+		// itself if a resize changes how many images there are.
+		passDescription.uniform_buffer_size = sizeof(shaders::RtCamera);
 		passDescription.vertex_buffer = scene.GetVertexBuffer();
 		passDescription.index_buffer = scene.GetIndexBuffer();
 		passDescription.instance_buffer = scene.GetInstanceBuffer();
@@ -163,6 +157,24 @@ int main()
 		std::cout << "scene: " << scene.GetBoxes().size() << " boxes, "
 			<< "bounces: " << MAX_BOUNCES << std::endl;
 		std::cout << "WASD to walk, mouse to look, Esc to quit" << std::endl;
+
+		// Tell the renderer the new size so the swapchain is rebuilt against it. The actual
+		// recreation happens inside the draw when the swapchain reports itself out of date.
+		WindowContext windowContext{ renderBase.get(), windowId };
+		glfwSetWindowUserPointer(window, &windowContext);
+		glfwSetFramebufferSizeCallback(window, [](GLFWwindow* resized, int width, int height)
+			{
+				if (width <= 0 || height <= 0)
+				{
+					return;
+				}
+
+				auto* context = static_cast<WindowContext*>(glfwGetWindowUserPointer(resized));
+				context->render_base->Resize(
+					context->window_id,
+					static_cast<uint32_t>(width),
+					static_cast<uint32_t>(height));
+			});
 
 		auto previousTime = std::chrono::steady_clock::now();
 
@@ -190,15 +202,9 @@ int main()
 
 			camera.Update(window, deltaSeconds);
 
-			const uint32_t frameIndex = managerSwapchain->GetCurrentFrameIndex(swapchainId);
-
-			// Wait for the frame that last used this index before overwriting its camera
-			// buffer. DrawFrame waits on the same fence again and resets it.
-			const auto fence = managerSwapchain->GetFence(swapchainId, frameIndex);
-			vkWaitForFences(buildContext.device->device, 1, &fence->fence, VK_TRUE, UINT64_MAX);
-
+			// Handed over now, uploaded inside the draw once the swapchain image is acquired.
 			const shaders::RtCamera cameraUniform = camera.MakeUniform(renderBase->GetAspect(windowId));
-			render::CreatorBuffer::Write(&cameraUniform, sizeof(cameraUniform), cameraBuffers[frameIndex].device_memory);
+			render::ManagerRayTracing::Get()->SetUniform(windowId, &cameraUniform, sizeof(cameraUniform));
 
 			renderBase->DrawFrame();
 		}

@@ -58,6 +58,21 @@ namespace render
 
 		[[nodiscard]] std::shared_ptr<DataFence> GetFence(const SwapchainId& swapchainId, const uint32_t index) const;
 
+		/*!
+		\brief The fence of the frame that last submitted work for a swapchain image.
+
+		Frames in flight are tracked per frame index, but command buffers and descriptors are
+		per swapchain image, and the acquired image index does not follow the frame index.
+		Waiting on this fence before reusing an image is what keeps a command buffer from
+		being submitted while a previous submission of it is still running.
+		\param[in] swapchainId the swapchain
+		\param[in] imageIndex the acquired image
+		\return the fence, or VK_NULL_HANDLE when the image has not been drawn into yet
+		*/
+		[[nodiscard]] VkFence GetImageInFlightFence(const SwapchainId& swapchainId, const uint32_t imageIndex) const;
+
+		void SetImageInFlightFence(const SwapchainId& swapchainId, const uint32_t imageIndex, VkFence fence);
+
 		[[nodiscard]] std::shared_ptr<DataSemaphore> GetAvailableSemaphore(const SwapchainId& swapchainId, const uint32_t index) const;
 
 		[[nodiscard]] std::shared_ptr<DataSemaphore> GetFinishedSemaphore(const SwapchainId& swapchainId, const uint32_t index) const;
@@ -98,6 +113,9 @@ namespace render
 			std::vector<std::shared_ptr<DataFence>> fences_;
 			std::vector<std::shared_ptr<DataSemaphore>> available_semaphores_;
 			std::vector<std::shared_ptr<DataSemaphore>> finished_semaphores_;
+
+			/*! \brief Per image, the fence of the frame that last submitted work for it. */
+			std::vector<VkFence> images_in_flight_;
 
 			/*!
 			\brief For resource acquisition aka command buffers, textures, buffers, etc.

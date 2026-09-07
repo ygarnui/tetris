@@ -67,6 +67,17 @@ namespace render
 
 		[[nodiscard]] FrameBufferId GetFrameBufferIdBySwapchainId(const SwapchainId& swapchainId) override;
 
+		/*!
+		\brief Look up the frame buffer of a swapchain without treating its absence as an error.
+
+		A ray traced window has no frame buffer at all, because the ray generation shader
+		writes into the swapchain image directly. Callers that only want to refresh a frame
+		buffer if there is one use this instead of GetFrameBufferIdBySwapchainId, which throws.
+		\param[in] swapchainId the swapchain to look up
+		\return the frame buffer id, or an invalid id when the swapchain has none
+		*/
+		[[nodiscard]] FrameBufferId FindFrameBufferIdBySwapchainId(const SwapchainId& swapchainId);
+
 		[[nodiscard]] const std::vector<std::shared_ptr<DataFrameBuffer>>& GetFramebuffers(const FrameBufferId& frameBufferId) const;
 
 		[[nodiscard]] const std::vector<std::vector<TextureId>>& GetFrameBufferAttachments(const FrameBufferId& frameBufferId) const override;

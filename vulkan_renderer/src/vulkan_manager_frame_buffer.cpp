@@ -92,7 +92,7 @@ namespace render
 		frameBufferId = GeneratorId::GenerateInvalidId<FrameBufferId>();
 	}
 
-	FrameBufferId VulkanManagerFrameBuffer::GetFrameBufferIdBySwapchainId(const SwapchainId& swapchainId)
+	FrameBufferId VulkanManagerFrameBuffer::FindFrameBufferIdBySwapchainId(const SwapchainId& swapchainId)
 	{
 		for (size_t frameBufferIndex = 0; frameBufferIndex < frame_buffers_.size(); frameBufferIndex++)
 		{
@@ -103,8 +103,19 @@ namespace render
 			}
 		}
 
-		LOGEXC(std::runtime_error, "[VulkanManagerFrameBuffer::GetFrameBufferIdBySwapchainId] Cant find FrameBufferId by swapchainId!");
 		return FrameBufferId();
+	}
+
+	FrameBufferId VulkanManagerFrameBuffer::GetFrameBufferIdBySwapchainId(const SwapchainId& swapchainId)
+	{
+		const FrameBufferId frameBufferId = FindFrameBufferIdBySwapchainId(swapchainId);
+
+		if (!frameBufferId.IsValid())
+		{
+			LOGEXC(std::runtime_error, "[VulkanManagerFrameBuffer::GetFrameBufferIdBySwapchainId] Cant find FrameBufferId by swapchainId!");
+		}
+
+		return frameBufferId;
 	}
 
 	const std::vector<std::shared_ptr<DataFrameBuffer>>& VulkanManagerFrameBuffer::GetFramebuffers(const FrameBufferId& frameBufferId) const

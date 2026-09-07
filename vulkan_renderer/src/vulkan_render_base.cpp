@@ -10,6 +10,7 @@
 #include "shader/compiler_shader_module.h"
 #include "shader/reader_shader.h"
 #include "raytracing/extension_functions.h"
+#include "raytracing/manager_ray_tracing.h"
 
 #include <logger_instance.h>
 #include <image_loader.h>
@@ -760,8 +761,16 @@ namespace render
 		auto swapchainId = ManagerWindow::Get()->GetSwapchainId(windowId);
 		ManagerSwapchain::Get()->RecreateSwapchain(swapchainId);
 
-		auto frameBufferId = VulkanManagerFrameBuffer::Get()->GetFrameBufferIdBySwapchainId(swapchainId);
-		VulkanManagerFrameBuffer::Get()->RecreateFrameBuffer(frameBufferId);
+		// The ray tracing pass writes straight into the swapchain images, so its descriptors
+		// refer to image views that the recreation above has just replaced.
+		ManagerRayTracing::Get()->ApplyResize(swapchainId);
+
+		// A ray traced window has no frame buffer at all, so only refresh one if it exists.
+		auto frameBufferId = VulkanManagerFrameBuffer::Get()->FindFrameBufferIdBySwapchainId(swapchainId);
+		if (frameBufferId.IsValid())
+		{
+			VulkanManagerFrameBuffer::Get()->RecreateFrameBuffer(frameBufferId);
+		}
 
 		GetManagerCommandBuffer()->RecreateCommandBuffers(windowId);
 	}
@@ -833,10 +842,26 @@ namespace render
 			LOGEXC(std::runtime_error, "failed to vkAcquireNextImageKHR:", int(result));
 		}
 
-		const auto& commandBuffers = VulkanManagerCommandBuffer::Get()->GetCommandBuffersByNumImage(detail.id_window, frameIndex);
+		// The frame fence above only says that this frame slot is free. The command buffer
+		// about to be submitted belongs to the image, so if another frame is still using
+		// that image, wait for it too. Skipped when it is the fence just waited on.
+		const VkFence imageInFlight = ManagerSwapchain::Get()->GetImageInFlightFence(swapchainId, imageIndex);
+		if (imageInFlight != VK_NULL_HANDLE && imageInFlight != fence->fence)
+		{
+			vkWaitForFences(logicalDevice->device, 1, &imageInFlight, VK_TRUE, UINT64_MAX);
+		}
+		ManagerSwapchain::Get()->SetImageInFlightFence(swapchainId, imageIndex, fence->fence);
+
+		// Command buffer slot i is recorded against swapchain image i: it transitions that
+		// image and binds the descriptor set that writes into it. The acquired image index
+		// is not always the frame index, so the slot has to follow the image, not the frame.
+		const auto& commandBuffers = VulkanManagerCommandBuffer::Get()->GetCommandBuffersByNumImage(detail.id_window, imageIndex);
 		VulkanManagerBuffer::Get()->ProcessDeletingBuffers(detail.id_window);
 
 		VulkanManagerUniformBuffer::Get()->UpdateSwapchainUniformBuffers(swapchainId, imageIndex);
+
+		// Now that the image is known, the frame's uniform block can go into that image's buffer.
+		ManagerRayTracing::Get()->UploadUniform(swapchainId, imageIndex);
 
 		VkSubmitInfo submitInfo{};
 		submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
