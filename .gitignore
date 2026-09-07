@@ -1,6 +1,7 @@
 # Build output
 build/
 out/
+.vscode/
 
 # Visual Studio
 .vs/

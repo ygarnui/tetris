@@ -124,7 +124,7 @@ void Camera::Update(GLFWwindow* window, const float deltaSeconds)
 	position_.y = eye_height;
 }
 
-shaders::RtCamera Camera::MakeUniform(const float aspect) const
+shaders::RtCamera Camera::MakeUniform(const float aspect, const bool aaEnabled) const
 {
 	const glm::vec3 forward = GetForward();
 
@@ -146,7 +146,8 @@ shaders::RtCamera Camera::MakeUniform(const float aspect) const
 	uniform.light_color = glm::vec4(1.0f, 0.97f, 0.90f, 0.0f);
 	uniform.sky_color = glm::vec4(0.45f, 0.62f, 0.85f, 0.0f);
 	uniform.ground_color = glm::vec4(0.12f, 0.12f, 0.14f, 0.0f);
-
+	uniform.aa_samples = aaEnabled ? AA_SAMPLES : 1;
+	
 	return uniform;
 }
 

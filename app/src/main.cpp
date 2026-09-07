@@ -178,6 +178,12 @@ int main()
 
 		auto previousTime = std::chrono::steady_clock::now();
 
+		// Toggled by the 1 key; camera.MakeUniform still needs to be told about this so it can
+		// feed a sample count through to the shader.
+		bool aaEnabled = true;
+		bool aaKeyWasDown = false;
+		std::cout << "1 toggles anti-aliasing (currently " << (aaEnabled ? "on" : "off") << ")" << std::endl;
+
 		while (!glfwWindowShouldClose(window))
 		{
 			glfwPollEvents();
@@ -186,6 +192,15 @@ int main()
 			{
 				glfwSetWindowShouldClose(window, GLFW_TRUE);
 			}
+
+			// Edge detected so holding the key down does not flip the state every frame.
+			const bool aaKeyIsDown = glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS;
+			if (aaKeyIsDown && !aaKeyWasDown)
+			{
+				aaEnabled = !aaEnabled;
+				std::cout << "anti-aliasing: " << (aaEnabled ? "on" : "off") << std::endl;
+			}
+			aaKeyWasDown = aaKeyIsDown;
 
 			const auto currentTime = std::chrono::steady_clock::now();
 			const float deltaSeconds = std::chrono::duration<float>(currentTime - previousTime).count();
@@ -203,7 +218,7 @@ int main()
 			camera.Update(window, deltaSeconds);
 
 			// Handed over now, uploaded inside the draw once the swapchain image is acquired.
-			const shaders::RtCamera cameraUniform = camera.MakeUniform(renderBase->GetAspect(windowId));
+			const shaders::RtCamera cameraUniform = camera.MakeUniform(renderBase->GetAspect(windowId), aaEnabled);
 			render::ManagerRayTracing::Get()->SetUniform(windowId, &cameraUniform, sizeof(cameraUniform));
 
 			renderBase->DrawFrame();

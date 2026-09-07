@@ -40,7 +40,7 @@ namespace tetris
 		\param[in] aspect width divided by height of the output image
 		\return the camera block, ready to be uploaded
 		*/
-		[[nodiscard]] shaders::RtCamera MakeUniform(const float aspect) const;
+		[[nodiscard]] shaders::RtCamera MakeUniform(const float aspect, const bool aaEnabled) const;
 
 		/*!
 		\brief Set the boxes the player collides with, in world space.

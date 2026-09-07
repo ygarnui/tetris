@@ -16,6 +16,8 @@
 // raising this does not add noise, only cost.
 #define MAX_BOUNCES 1
 
+#define AA_SAMPLES 8
+
 // Surfaces with a reflectivity at or below this are treated as fully diffuse and stop the
 // bounce loop early.
 #define MIN_REFLECTIVITY 0.01
@@ -87,6 +89,9 @@ struct RtCamera
 	vec4 light_color;
 	vec4 sky_color;
 	vec4 ground_color;
+
+	/*! \brief Number of samples with anti-aliasing enabled  */
+	uint aa_samples;
 };
 
 /*!

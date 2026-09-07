@@ -2,6 +2,8 @@
 
 #include <vulkan/vulkan.h>
 
+#include <algorithm>
+
 namespace tetris
 {
 
@@ -17,7 +19,7 @@ void Scene::createBoxes()
 {
 	boxes_.clear();
 
-	const glm::vec3 dark_plastic = { 0.10f, 0.11f, 0.13f };
+	const glm::vec3 darkPlastic = { 0.10f, 0.11f, 0.13f };
 	const glm::vec3 wood = { 0.42f, 0.28f, 0.17f };
 
 	// Floor, faintly reflective so the reflection bounce has something to show.
@@ -38,22 +40,57 @@ void Scene::createBoxes()
 		boxes_.push_back({ "table_leg", { x, legHeight * 0.5f, z }, { 0.10f, legHeight, 0.10f }, wood, 0.03f });
 	}
 
-	// The cabinet standing on the table, with the screen recessed into its front face.
-	boxes_.push_back({ "cabinet", { 0.0f, table_top_y + 0.36f, -0.20f }, { 1.30f, 0.72f, 0.45f }, dark_plastic, 0.05f });
+	// The whole tetris unit is one flat slab lying on the table, like a phone lying face up:
+	// no upright cabinet, just a thin console with the screen and all six buttons set into
+	// its top face. Lay out the screen and the button row first, in x/z offsets from an
+	// arbitrary origin, then size the console to wrap them with a margin of half a button's
+	// width on every side, then recentre the whole assembly on the table.
+	const glm::vec3 buttonSize = { 0.08f, 0.02f, 0.08f };
+	const float buttonSpacing = buttonSize.x * 1.5f; // half a button's width of gap between buttons
+	float buttonRowZ = 0.28f;
 
-	// The screen: dark glass, reflective enough to mirror the room.
-	boxes_.push_back({ "screen", { 0.0f, table_top_y + 0.40f, 0.03f }, { 1.05f, 0.52f, 0.02f }, { 0.02f, 0.02f, 0.03f }, 0.35f });
+	// The screen: horizontal but portrait, narrower along x than along z, toward the back of
+	// the console, dark and only a little reflective, like glossy black plastic rather than
+	// glass.
+	const glm::vec3 screenSize = { 0.50f, 0.02f, 0.62f };
+	float screenZ = -0.17f;
 
-	// The five buttons, sitting on the table in front of the cabinet.
-	const float buttonY = table_top_y + 0.025f;
-	const float buttonZ = 0.32f;
-	const glm::vec3 buttonSize = { 0.11f, 0.05f, 0.11f };
+	const float margin = buttonSize.x * 0.5f;
+	const float contentMaxX = buttonSpacing * 2.5f + buttonSize.x * 0.5f;
+	const float contentMinZ = std::min(screenZ - screenSize.z * 0.5f, buttonRowZ - buttonSize.z * 0.5f);
+	const float contentMaxZ = std::max(screenZ + screenSize.z * 0.5f, buttonRowZ + buttonSize.z * 0.5f);
 
-	boxes_.push_back({ "button_left",   { -0.40f, buttonY, buttonZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_right",  { -0.20f, buttonY, buttonZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_down",   {  0.00f, buttonY, buttonZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_rotate", {  0.20f, buttonY, buttonZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
-	boxes_.push_back({ "button_start",  {  0.40f, buttonY, buttonZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
+	const float tableTopThickness = 0.08f;
+	const glm::vec3 consoleSize = {
+		contentMaxX * 2.0f + margin * 2.0f,
+		tableTopThickness * 0.5f,
+		(contentMaxZ - contentMinZ) + margin * 2.0f };
+
+	// Table centre is (0, 0) in x/z, and the console is already centred on it in x, so only
+	// the z offsets need shifting to bring the console's centre onto the table's centre.
+	const float recentre = -(contentMinZ + contentMaxZ) * 0.5f;
+	screenZ += recentre;
+	buttonRowZ += recentre;
+
+	const glm::vec3 consoleCenter = { 0.0f, table_top_y + consoleSize.y * 0.5f, 0.0f };
+	boxes_.push_back({ "console", consoleCenter, consoleSize, darkPlastic, 0.05f });
+
+	// Everything on the console face sits a hair proud of it, so it doesn't get swallowed by
+	// the console box it overlaps.
+	const float consoleTopY = consoleCenter.y + consoleSize.y * 0.5f;
+	const float proud = 0.004f;
+
+	const glm::vec3 screenCenter = { 0.0f, consoleTopY - screenSize.y * 0.5f + proud, screenZ };
+	boxes_.push_back({ "screen", screenCenter, screenSize, { 0.03f, 0.03f, 0.04f }, 0.20f });
+
+	const float buttonY = consoleTopY - buttonSize.y * 0.5f + proud;
+
+	boxes_.push_back({ "button_left",   { buttonSpacing * -2.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_right",  { buttonSpacing * -1.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_rotate", { buttonSpacing * -0.5f, buttonY, buttonRowZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
+	boxes_.push_back({ "button_down",   { buttonSpacing *  0.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_pause",  { buttonSpacing *  1.5f, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
+	boxes_.push_back({ "button_start",  { buttonSpacing *  2.5f, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
 
 	// Only the table blocks movement; everything else stands on top of it.
 	blockers_.clear();

@@ -36,79 +36,102 @@ bool isOccluded(vec3 origin, vec3 direction, float maxDistance)
 	return payload.hit == 1;
 }
 
+/*!
+\brief Center offsets for smoothing.
+
+Components X and Y store the offset.
+*/
+const vec2 sample_offset[8] = vec2[8](
+vec2( 0.0625, -0.1875),
+vec2(-0.0625,  0.1875),
+vec2( 0.3125,  0.0625),
+vec2(-0.1875, -0.3125),
+vec2(-0.3125,  0.3125),
+vec2(-0.4375, -0.0625),
+vec2( 0.1875,  0.4375),
+vec2( 0.4375, -0.4375)
+);
+
 void main()
 {
-	// Pixel centre in normalised device coordinates.
-	const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5);
-	const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
-	const vec2 ndc = uv * 2.0 - 1.0;
-
-	vec4 origin = camera.view_inverse * vec4(0.0, 0.0, 0.0, 1.0);
-	vec4 target = camera.projection_inverse * vec4(ndc.x, ndc.y, 1.0, 1.0);
-	vec4 direction = camera.view_inverse * vec4(normalize(target.xyz), 0.0);
-
-	vec3 rayOrigin = origin.xyz;
-	vec3 rayDirection = direction.xyz;
-
+	float aaScale = min(float(camera.aa_samples) - 1.0, 1.0);
 	vec3 color = vec3(0.0);
-	vec3 throughput = vec3(1.0);
-
-	// One iteration for the primary ray plus one per reflection bounce.
-	for (int bounce = 0; bounce <= MAX_BOUNCES; ++bounce)
+	
+	for(uint s = 0; s < camera.aa_samples; ++s)
 	{
-		payload.hit = 0;
+		// Pixel centre in normalised device coordinates.
+		const vec2 offset = sample_offset[s] * aaScale;
+		const vec2 pixelCenter = vec2(gl_LaunchIDEXT.xy) + vec2(0.5) + offset;
+		const vec2 uv = pixelCenter / vec2(gl_LaunchSizeEXT.xy);
+		const vec2 ndc = uv * 2.0 - 1.0;
 
-		traceRayEXT(
-			topLevel,
-			gl_RayFlagsOpaqueEXT,
-			0xFF,
-			0, 0, 0,
-			rayOrigin,
-			RAY_ORIGIN_BIAS,
-			rayDirection,
-			RAY_MAX_DISTANCE,
-			0);
+		vec4 origin = camera.view_inverse * vec4(0.0, 0.0, 0.0, 1.0);
+		vec4 target = camera.projection_inverse * vec4(ndc.x, ndc.y, 1.0, 1.0);
+		vec4 direction = camera.view_inverse * vec4(normalize(target.xyz), 0.0);
 
-		if (payload.hit == 0)
+		vec3 rayOrigin = origin.xyz;
+		vec3 rayDirection = direction.xyz;
+
+		vec3 throughput = vec3(1.0);
+
+		// One iteration for the primary ray plus one per reflection bounce.
+		for (int bounce = 0; bounce <= MAX_BOUNCES; ++bounce)
 		{
-			// Nothing was hit: fade between ground and sky along the ray direction.
-			const float horizon = clamp(rayDirection.y * 0.5 + 0.5, 0.0, 1.0);
-			color += throughput * mix(camera.ground_color.rgb, camera.sky_color.rgb, horizon);
-			break;
+			payload.hit = 0;
+
+			traceRayEXT(
+				topLevel,
+				gl_RayFlagsOpaqueEXT,
+				0xFF,
+				0, 0, 0,
+				rayOrigin,
+				RAY_ORIGIN_BIAS,
+				rayDirection,
+				RAY_MAX_DISTANCE,
+				0);
+
+			if (payload.hit == 0)
+			{
+				// Nothing was hit: fade between ground and sky along the ray direction.
+				const float horizon = clamp(rayDirection.y * 0.5 + 0.5, 0.0, 1.0);
+				color += throughput * mix(camera.ground_color.rgb, camera.sky_color.rgb, horizon);
+				break;
+			}
+
+			const vec3 position = payload.position;
+			const vec3 normal = payload.normal;
+			const vec3 albedo = payload.albedo;
+			const float reflectivity = payload.reflectivity;
+
+			// Direct lighting with a hard shadow.
+			const vec3 toLight = -normalize(camera.light_direction.xyz);
+			const float incidence = max(dot(normal, toLight), 0.0);
+
+			float shadow = 1.0;
+			if (incidence > 0.0)
+			{
+				shadow = isOccluded(position + normal * RAY_ORIGIN_BIAS, toLight, RAY_MAX_DISTANCE) ? 0.0 : 1.0;
+			}
+
+			// A little ambient from the sky keeps surfaces facing away from the light readable.
+			const vec3 ambient = mix(camera.ground_color.rgb, camera.sky_color.rgb, normal.y * 0.5 + 0.5) * 0.25;
+			const vec3 direct = camera.light_color.rgb * incidence * shadow;
+
+			color += throughput * albedo * (direct + ambient);
+
+			if (reflectivity <= MIN_REFLECTIVITY)
+			{
+				break;
+			}
+
+			// Continue as a mirror ray. Everything is traced from here, so the pipeline never
+			// recurses and its maximum recursion depth stays at one.
+			throughput *= reflectivity;
+			rayOrigin = position + normal * RAY_ORIGIN_BIAS;
+			rayDirection = reflect(rayDirection, normal);
 		}
-
-		const vec3 position = payload.position;
-		const vec3 normal = payload.normal;
-		const vec3 albedo = payload.albedo;
-		const float reflectivity = payload.reflectivity;
-
-		// Direct lighting with a hard shadow.
-		const vec3 toLight = -normalize(camera.light_direction.xyz);
-		const float incidence = max(dot(normal, toLight), 0.0);
-
-		float shadow = 1.0;
-		if (incidence > 0.0)
-		{
-			shadow = isOccluded(position + normal * RAY_ORIGIN_BIAS, toLight, RAY_MAX_DISTANCE) ? 0.0 : 1.0;
-		}
-
-		// A little ambient from the sky keeps surfaces facing away from the light readable.
-		const vec3 ambient = mix(camera.ground_color.rgb, camera.sky_color.rgb, normal.y * 0.5 + 0.5) * 0.25;
-		const vec3 direct = camera.light_color.rgb * incidence * shadow;
-
-		color += throughput * albedo * (direct + ambient);
-
-		if (reflectivity <= MIN_REFLECTIVITY)
-		{
-			break;
-		}
-
-		// Continue as a mirror ray. Everything is traced from here, so the pipeline never
-		// recurses and its maximum recursion depth stays at one.
-		throughput *= reflectivity;
-		rayOrigin = position + normal * RAY_ORIGIN_BIAS;
-		rayDirection = reflect(rayDirection, normal);
 	}
 
+	color = color / camera.aa_samples;
 	imageStore(outputImage, ivec2(gl_LaunchIDEXT.xy), vec4(color, 1.0));
 }
