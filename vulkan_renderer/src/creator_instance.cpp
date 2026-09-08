@@ -22,18 +22,27 @@ std::shared_ptr<DataInstance> CreatorInstance::CreateInstace(const std::vector<c
         }
     });
 
+    std::vector<const char*> newExtensions = extensions;
+
+    // The debug messenger only has something to report when a validation layer is active, so
+    // it - and the VK_EXT_debug_utils extension it needs - only exist in debug builds. A
+    // release build must not depend on either: neither ships with the Vulkan runtime alone.
+#ifdef _DEBUG
     VkDebugUtilsMessengerCreateInfoEXT messengerCreateInfo;
     CreatorDebugUtilMessenger::initDebugMessengerCreateInfo(messengerCreateInfo);
-     
-    std::vector<const char*> newExtensions = extensions;
     newExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+    const VkDebugUtilsMessengerCreateInfoEXT* messengerCreateInfoPtr = &messengerCreateInfo;
+#else
+    const VkDebugUtilsMessengerCreateInfoEXT* messengerCreateInfoPtr = nullptr;
+#endif
+
     VkInstanceCreateInfo instanceCreateInfo;
     initInstanceCreateInfo(
         instanceCreateInfo,
         application_info,
-        messengerCreateInfo,
+        messengerCreateInfoPtr,
         newExtensions,
-        layers);                                                   
+        layers);
 
     auto res = vkCreateInstance(&instanceCreateInfo, nullptr, &instance->instance);
     if (res != VK_SUCCESS)
@@ -57,10 +66,10 @@ void CreatorInstance::initApplicationInfo(VkApplicationInfo& applicationInfo)
 }
 
 void CreatorInstance::initInstanceCreateInfo(
-    VkInstanceCreateInfo& InstanceCreateInfo, 
-    const VkApplicationInfo& applicationInfo, 
-    VkDebugUtilsMessengerCreateInfoEXT &messengerCreateInfo,
-    const std::vector<const char*>& extensions, 
+    VkInstanceCreateInfo& InstanceCreateInfo,
+    const VkApplicationInfo& applicationInfo,
+    const VkDebugUtilsMessengerCreateInfoEXT* messengerCreateInfo,
+    const std::vector<const char*>& extensions,
     const std::vector<const char*>& layers)
 {
     InstanceCreateInfo = {};
@@ -69,7 +78,7 @@ void CreatorInstance::initInstanceCreateInfo(
     InstanceCreateInfo.enabledLayerCount = static_cast<uint32_t>(layers.size());
     InstanceCreateInfo.ppEnabledLayerNames = layers.data();
 
-    InstanceCreateInfo.pNext = &messengerCreateInfo;
+    InstanceCreateInfo.pNext = messengerCreateInfo;
 
     InstanceCreateInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     InstanceCreateInfo.ppEnabledExtensionNames = extensions.data();

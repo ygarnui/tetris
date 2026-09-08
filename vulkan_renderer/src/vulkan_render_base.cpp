@@ -15,6 +15,8 @@
 #include <logger_instance.h>
 #include <image_loader.h>
 
+#include <algorithm>
+#include <cstring>
 #include <exception>
 #include <stdexcept>
 #include <iostream>
@@ -675,7 +677,11 @@ namespace render
 
 	void VulkanRenderBase::init()
 	{
+		// Needs VK_EXT_debug_utils on the instance, which createInstance only requests in a
+		// debug build (see CreatorInstance::CreateInstace) - stays null otherwise.
+#ifdef _DEBUG
 		debug_utils_messenger_ = CreatorDebugUtilMessenger::CreateDebugUtilsMessenger(instance_);
+#endif
 
 		manager_window_ = ManagerWindow::Get();
 		manager_device_ = ManagerDevice::Get();
@@ -716,10 +722,32 @@ namespace render
 
 	void VulkanRenderBase::initInstanceLayerProperties()
 	{
+		// The validation layer is a development tool that ships with the Vulkan SDK, not with
+		// the GPU driver - a player's machine has the Vulkan runtime to run this, but not the
+		// SDK, so requesting it unconditionally would make vkCreateInstance fail there with
+		// VK_ERROR_LAYER_NOT_PRESENT. Debug-only, and even then...
+#ifdef _DEBUG
 		validation_layers_ = {
-		"VK_LAYER_KHRONOS_validation"
+			"VK_LAYER_KHRONOS_validation"
 		};
+#endif
 		available_layers_ = ValidationLayer::initValidationLayerSupport(validation_layers_);
+
+		// ...only request whichever of the above the loader actually reports, so a Debug
+		// build still runs on a machine that also lacks the SDK, instead of hard failing.
+		std::erase_if(validation_layers_, [this](const char* layerName)
+		{
+			const bool isAvailable = std::any_of(
+				available_layers_.begin(), available_layers_.end(),
+				[&](const VkLayerProperties& layer) { return std::strcmp(layerName, layer.layerName) == 0; });
+
+			if (!isAvailable)
+			{
+				LOG(Loglvl::warning, "[VulkanRenderBase::initInstanceLayerProperties] requested layer not available, skipping:", layerName);
+			}
+
+			return !isAvailable;
+		});
 	}
 
 	void VulkanRenderBase::createInstance(std::vector<const char*>& extensions)

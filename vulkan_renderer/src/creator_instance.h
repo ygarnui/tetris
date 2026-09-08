@@ -18,10 +18,15 @@ public:
 
 private:
 	void static initApplicationInfo(VkApplicationInfo& applicationInfo);
+	/*!
+	\param[in] messengerCreateInfo chained in via pNext when not null; pass null to create the
+	instance without the debug messenger (e.g. a release build with no validation layer to
+	report anything).
+	*/
 	void static initInstanceCreateInfo(
 		VkInstanceCreateInfo& InstanceCreateInfo,
 		const VkApplicationInfo& applicationInfo,
-		VkDebugUtilsMessengerCreateInfoEXT& messengerCreateInfo,
+		const VkDebugUtilsMessengerCreateInfoEXT* messengerCreateInfo,
 		const std::vector<const char*>& extensions,
 		const std::vector<const char*>& layers);
 };
