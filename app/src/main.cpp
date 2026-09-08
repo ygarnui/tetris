@@ -79,8 +79,9 @@ int main()
 			return 1;
 		}
 
-		// The crosshair in the centre of the screen is the pointer, so the cursor is captured.
-		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		// Cursor starts free so it can click the cabinet's buttons; Camera::Update captures
+		// it (GLFW_CURSOR_DISABLED) only while the right mouse button drags the view.
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
 		std::filesystem::create_directories(TETRIS_SHADER_CACHE_PATH);
 
@@ -154,7 +155,7 @@ int main()
 
 		std::cout << "scene: " << scene.GetBoxes().size() << " boxes, "
 			<< "bounces: " << MAX_BOUNCES << std::endl;
-		std::cout << "WASD to walk, mouse to look, Esc to quit" << std::endl;
+		std::cout << "WASD to walk, hold right mouse button to look, Esc to quit" << std::endl;
 
 		// Tell the renderer the new size so the swapchain is rebuilt against it. The actual
 		// recreation happens inside the draw when the swapchain reports itself out of date.

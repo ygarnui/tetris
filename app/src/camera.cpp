@@ -64,6 +64,8 @@ bool Camera::isBlocked(const glm::vec3& position) const
 
 void Camera::Update(GLFWwindow* window, const float deltaSeconds)
 {
+	const bool rightMouseDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_RIGHT) == GLFW_PRESS;
+
 	double cursorX = 0.0;
 	double cursorY = 0.0;
 	glfwGetCursorPos(window, &cursorX, &cursorY);
@@ -75,14 +77,33 @@ void Camera::Update(GLFWwindow* window, const float deltaSeconds)
 		has_cursor_ = true;
 	}
 
+	if (rightMouseDown && !right_mouse_was_down_)
+	{
+		// Just grabbed the view: hide/lock the cursor for clean relative deltas, and drop
+		// the stale delta from wherever it was free-roaming before the button was pressed.
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+		glfwGetCursorPos(window, &cursorX, &cursorY);
+		last_cursor_x_ = cursorX;
+		last_cursor_y_ = cursorY;
+	}
+	else if (!rightMouseDown && right_mouse_was_down_)
+	{
+		// Released: give the cursor back so it can click the cabinet's buttons.
+		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+	}
+	right_mouse_was_down_ = rightMouseDown;
+
 	const float deltaX = static_cast<float>(cursorX - last_cursor_x_);
 	const float deltaY = static_cast<float>(cursorY - last_cursor_y_);
 
 	last_cursor_x_ = cursorX;
 	last_cursor_y_ = cursorY;
 
-	yaw_ += deltaX * mouse_sensitivity;
-	pitch_ = std::clamp(pitch_ - deltaY * mouse_sensitivity, -pitch_limit, pitch_limit);
+	if (rightMouseDown)
+	{
+		yaw_ += deltaX * mouse_sensitivity;
+		pitch_ = std::clamp(pitch_ - deltaY * mouse_sensitivity, -pitch_limit, pitch_limit);
+	}
 
 	const glm::vec3 forward = GetForward();
 	// Movement stays in the floor plane even when looking up or down.

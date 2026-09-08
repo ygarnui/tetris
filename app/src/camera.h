@@ -22,8 +22,9 @@ namespace tetris
 	/*!
 	\brief First person camera walking on the floor.
 
-	Mouse look plus WASD, with the eye height fixed: the player walks around the table, and
-	the crosshair in the centre of the screen is what presses the buttons.
+	WASD to walk, eye height fixed. Mouse look is decoupled from the cursor: holding the
+	right mouse button drags the view, while the cursor is otherwise free to roam the screen
+	so it can click the cabinet's buttons (see the picking code in main.cpp).
 	*/
 	class Camera
 	{
@@ -66,6 +67,7 @@ namespace tetris
 		double last_cursor_x_ = 0.0;
 		double last_cursor_y_ = 0.0;
 		bool has_cursor_ = false;
+		bool right_mouse_was_down_ = false;
 
 		/*! \brief Half the width of the player, used to keep them out of the blockers. */
 		float radius_ = 0.25f;
