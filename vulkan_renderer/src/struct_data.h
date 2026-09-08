@@ -29,6 +29,7 @@ struct DataSwapchainSupportDetails
 struct DataDevice
 {
 	VkDevice device;
+	std::shared_ptr<DataInstance> instance;
 };
 
 struct DataSwapchain

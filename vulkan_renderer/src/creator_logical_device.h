@@ -15,10 +15,11 @@ class CreatorLogicalDevice
 {
 public:
 	[[nodiscard]] static std::shared_ptr<DataDevice> CreateLogicalDevice(
-		VkPhysicalDevice physicalDevice, 
+		VkPhysicalDevice physicalDevice,
 		const std::vector<QueueFamilyIndices>& queueFamilyIndex,
 		const VkPhysicalDeviceFeatures& physicalDeviceFeatures,
-		const std::vector<const char*>& deviceExtensions);
+		const std::vector<const char*>& deviceExtensions,
+		std::shared_ptr<DataInstance> instance);
 private:
 	static void initDeviceQueueCreateInfo(
 		VkDeviceQueueCreateInfo& queueCreateInfo, 

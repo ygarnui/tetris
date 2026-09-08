@@ -357,6 +357,7 @@ namespace render
 		manager_sampler_ = ManagerSampler::Get();
 		manager_textures_ = VulkanManagerTextures::Get();
 		manager_uniform_buffer_ = VulkanManagerUniformBuffer::Get();
+		manager_ray_tracing_ = ManagerRayTracing::Get();
 
 		printInfo();
 	}
@@ -430,6 +431,7 @@ namespace render
 		VulkanManagerShaderProgram::Get() = nullptr;
 		VulkanManagerTextures::Get() = nullptr;
 		VulkanManagerUniformBuffer::Get() = nullptr;
+		ManagerRayTracing::Get() = nullptr;
 
 		ManagerSampler::Get() = nullptr;
 

@@ -8,6 +8,7 @@
 #include "../src/buffers/vulkan_manager_buffer.h"
 #include "../src/pipeline/vulkan_manager_command_buffer.h"
 #include "../src/pipeline/vulkan_manager_drawcall.h"
+#include "../src/raytracing/manager_ray_tracing.h"
 #include "../src/shader/vulkan_manager_shader_program.h"
 #include "../src/textures/vulkan_manager_textures.h"
 #include "../src/utils/manager_time.h"
@@ -161,6 +162,7 @@ private:
 	std::shared_ptr<ManagerSampler> manager_sampler_;
 	std::shared_ptr<VulkanManagerUniformBuffer> manager_uniform_buffer_;
 
+	std::shared_ptr<ManagerRayTracing> manager_ray_tracing_;
 	std::shared_ptr<ManagerSurface> manager_surface_;
 	std::shared_ptr<ManagerDevice> manager_device_;
 	std::shared_ptr<ManagerSwapchain> manager_swapchain_;

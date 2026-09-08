@@ -36,6 +36,8 @@ namespace render
 
 	void ManagerDevice::Init(std::shared_ptr<DataInstance> instance)
 	{
+		instance_ = instance;
+
 		physical_devices_ = CreatorPhysicalDevice::CreatePhysicalDevices(instance);
 
 		if (physical_devices_.empty())
@@ -84,7 +86,8 @@ namespace render
 			physical_devices_[physicalDeviceId],
 			physicalDeviceDetails.properties_.queue_family_indices,
 			physicalDeviceDetails.properties_.device_features,
-			physicalDeviceDetails.extensions_));
+			physicalDeviceDetails.extensions_,
+			instance_));
 
 		graphics_queue_.push_back(CreatorQueueDescription::CreateQueueDescription(
 			logical_device_[logicalDeviceId],

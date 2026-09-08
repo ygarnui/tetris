@@ -81,6 +81,8 @@ namespace render
 			std::map<SurfaceId, DataSwapchainSupportDetails> swapchain_support_details_;
 		};
 
+		std::shared_ptr<DataInstance> instance_;
+
 		std::vector<VkPhysicalDevice> physical_devices_;
 
 		std::map<PhysicalDeviceId, PhysicalDeviceDetails> physical_device_details_;

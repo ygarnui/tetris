@@ -25,10 +25,11 @@ namespace
 	}
 }
 std::shared_ptr<DataDevice> CreatorLogicalDevice::CreateLogicalDevice(
-	VkPhysicalDevice physicalDevice, 
+	VkPhysicalDevice physicalDevice,
 	const std::vector<QueueFamilyIndices>& queueFamilyIndex,
 	const VkPhysicalDeviceFeatures& physicalDeviceFeatures,
-	const std::vector<const char*>& deviceExtensions)
+	const std::vector<const char*>& deviceExtensions,
+	std::shared_ptr<DataInstance> instance)
 {
 	std::vector<VkDeviceQueueCreateInfo> deviceQueueCreateInfo(queueFamilyIndex.size());
 	float queuePriorities = 1.0f;
@@ -90,7 +91,7 @@ std::shared_ptr<DataDevice> CreatorLogicalDevice::CreateLogicalDevice(
 		}
 	}
 
-	std::shared_ptr<DataDevice> device(new DataDevice{ {} }, [](DataDevice* p) {
+	std::shared_ptr<DataDevice> device(new DataDevice{ {}, instance }, [](DataDevice* p) {
 		vkDestroyDevice(p->device, nullptr);
 		delete p;
 	});
