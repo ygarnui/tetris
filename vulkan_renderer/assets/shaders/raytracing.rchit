@@ -1,18 +1,9 @@
 #version 460
 #extension GL_EXT_ray_tracing : require
+#extension GL_EXT_buffer_reference : require
 #extension GL_EXT_nonuniform_qualifier : enable
 
 #include "globals/raytracing.h"
-
-layout(scalar, set = 0, binding = RT_BINDING_VERTICES) readonly buffer VertexBuffer
-{
-	RtVertex vertices[];
-};
-
-layout(scalar, set = 0, binding = RT_BINDING_INDICES) readonly buffer IndexBuffer
-{
-	uint indices[];
-};
 
 layout(scalar, set = 0, binding = RT_BINDING_INSTANCES) readonly buffer InstanceBuffer
 {
@@ -32,11 +23,11 @@ void main()
 {
 	const RtInstance instance = instances[gl_InstanceCustomIndexEXT];
 
-	const uint indexOffset = instance.first_index + 3 * gl_PrimitiveID;
-
-	const uint i0 = instance.first_vertex + indices[indexOffset + 0];
-	const uint i1 = instance.first_vertex + indices[indexOffset + 1];
-	const uint i2 = instance.first_vertex + indices[indexOffset + 2];
+	const uint indexOffset = 3 * gl_PrimitiveID;
+	
+	const uint i0 = IndexBufferRef(instance.index_buffer_address).indices[indexOffset + 0];
+	const uint i1 = IndexBufferRef(instance.index_buffer_address).indices[indexOffset + 1];
+	const uint i2 = IndexBufferRef(instance.index_buffer_address).indices[indexOffset + 2];
 
 	const vec3 weights = vec3(
 		1.0 - barycentrics.x - barycentrics.y,
@@ -44,9 +35,9 @@ void main()
 		barycentrics.y);
 
 	const vec3 objectNormal =
-		vertices[i0].normal * weights.x +
-		vertices[i1].normal * weights.y +
-		vertices[i2].normal * weights.z;
+		VertexBufferRef(instance.vertex_buffer_address).vertices[i0].normal * weights.x +
+		VertexBufferRef(instance.vertex_buffer_address).vertices[i1].normal * weights.y +
+		VertexBufferRef(instance.vertex_buffer_address).vertices[i2].normal * weights.z;
 
 	// gl_ObjectToWorldEXT is a 4x3 matrix; the scene only uses rotation, uniform scale and
 	// translation, so its upper 3x3 transforms normals correctly after normalisation.

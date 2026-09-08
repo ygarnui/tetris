@@ -24,9 +24,7 @@ namespace render
 		AccelerationStructure = 0,
 		OutputImage = 1,
 		Camera = 2,
-		Vertices = 3,
-		Indices = 4,
-		Instances = 5,
+		Instances = 3,
 	};
 
 	/*!
@@ -48,8 +46,6 @@ namespace render
 		*/
 		uint64_t uniform_buffer_size = 0;
 
-		std::shared_ptr<DataBuffer> vertex_buffer;
-		std::shared_ptr<DataBuffer> index_buffer;
 		std::shared_ptr<DataBuffer> instance_buffer;
 
 		/*!

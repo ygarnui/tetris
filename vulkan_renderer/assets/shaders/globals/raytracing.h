@@ -4,6 +4,8 @@
 
 #ifndef __cplusplus
 	#extension GL_EXT_scalar_block_layout : enable
+	#extension GL_EXT_shader_explicit_arithmetic_types_int64 : require
+	#extension GL_EXT_buffer_reference : require
 #endif
 
 // ---------------------------------------------------------------------------------------
@@ -35,9 +37,7 @@
 #define RT_BINDING_ACCELERATION_STRUCTURE 0
 #define RT_BINDING_OUTPUT_IMAGE 1
 #define RT_BINDING_CAMERA 2
-#define RT_BINDING_VERTICES 3
-#define RT_BINDING_INDICES 4
-#define RT_BINDING_INSTANCES 5
+#define RT_BINDING_INSTANCES 3
 
 #ifdef __cplusplus
 	#pragma once
@@ -59,19 +59,32 @@ struct RtVertex
 	vec3 normal;
 };
 
+
+#ifndef __cplusplus
+	layout(buffer_reference, scalar) readonly buffer VertexBufferRef
+	{
+		RtVertex vertices[];
+	};
+
+	layout(buffer_reference, scalar) readonly buffer IndexBufferRef
+	{
+		uint indices[];
+	};
+#endif
 /*!
 \brief Per instance shading data, indexed by gl_InstanceCustomIndexEXT.
 
-first_index and first_vertex point into the shared vertex and index buffers, so every
-instance can reuse the geometry of any other one.
+vertex_buffer_address and index_buffer_address are the addresses of this 
+instance's own vertex/index buffer, 
+so different meshes can be added without touching a shared buffer.
 */
 struct RtInstance
 {
 	/*! \brief Surface colour in rgb, mirror reflectivity in a. */
 	vec4 albedo_reflectivity;
 
-	uint first_index;
-	uint first_vertex;
+	uint64_t vertex_buffer_address;
+	uint64_t index_buffer_address;
 	uint emissive;
 	uint padding;
 };

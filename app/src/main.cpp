@@ -136,8 +136,6 @@ int main()
 		// The pass owns one buffer of this size per swapchain image and reallocates them
 		// itself if a resize changes how many images there are.
 		passDescription.uniform_buffer_size = sizeof(shaders::RtCamera);
-		passDescription.vertex_buffer = scene.GetVertexBuffer();
-		passDescription.index_buffer = scene.GetIndexBuffer();
 		passDescription.instance_buffer = scene.GetInstanceBuffer();
 		passDescription.max_recursion_depth = 1;
 

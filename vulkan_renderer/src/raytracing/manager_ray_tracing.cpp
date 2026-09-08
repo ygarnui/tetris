@@ -22,7 +22,7 @@ namespace
 	/*!
 	\brief Number of descriptors a single ray tracing set holds, as fixed by RayTracingBinding.
 	*/
-	constexpr uint32_t descriptors_per_set = 6;
+	constexpr uint32_t descriptors_per_set = 4;
 
 	BuildContext makeBuildContext(
 		const LogicalDeviceId& logicalDeviceId,
@@ -155,14 +155,6 @@ void ManagerRayTracing::writeDescriptorSets(DetailRayTracingPass& pass)
 		cameraInfo.buffer = pass.uniform_buffers[i].buffer->buffer;
 		cameraInfo.range = VK_WHOLE_SIZE;
 
-		VkDescriptorBufferInfo vertexInfo{};
-		vertexInfo.buffer = pass.description.vertex_buffer->buffer;
-		vertexInfo.range = VK_WHOLE_SIZE;
-
-		VkDescriptorBufferInfo indexInfo{};
-		indexInfo.buffer = pass.description.index_buffer->buffer;
-		indexInfo.range = VK_WHOLE_SIZE;
-
 		VkDescriptorBufferInfo instanceInfo{};
 		instanceInfo.buffer = pass.description.instance_buffer->buffer;
 		instanceInfo.range = VK_WHOLE_SIZE;
@@ -181,23 +173,18 @@ void ManagerRayTracing::writeDescriptorSets(DetailRayTracingPass& pass)
 			writes[index].descriptorType = type;
 		};
 
-		initWrite(0, RayTracingBinding::AccelerationStructure, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-		writes[0].pNext = &accelerationStructureWrite;
+		uint32_t pos = 0;
+		initWrite(pos, RayTracingBinding::AccelerationStructure, VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+		writes[pos++].pNext = &accelerationStructureWrite;
 
-		initWrite(1, RayTracingBinding::OutputImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-		writes[1].pImageInfo = &imageInfo;
+		initWrite(pos, RayTracingBinding::OutputImage, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		writes[pos++].pImageInfo = &imageInfo;
 
-		initWrite(2, RayTracingBinding::Camera, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
-		writes[2].pBufferInfo = &cameraInfo;
+		initWrite(pos, RayTracingBinding::Camera, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER);
+		writes[pos++].pBufferInfo = &cameraInfo;
 
-		initWrite(3, RayTracingBinding::Vertices, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		writes[3].pBufferInfo = &vertexInfo;
-
-		initWrite(4, RayTracingBinding::Indices, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		writes[4].pBufferInfo = &indexInfo;
-
-		initWrite(5, RayTracingBinding::Instances, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-		writes[5].pBufferInfo = &instanceInfo;
+		initWrite(pos, RayTracingBinding::Instances, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
+		writes[pos++].pBufferInfo = &instanceInfo;
 
 		vkUpdateDescriptorSets(
 			device->device,

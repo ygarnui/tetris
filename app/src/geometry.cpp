@@ -73,7 +73,7 @@ Mesh CreateUnitSphere()
 	const float halfStep = step / 2.0f;
 
 	std::vector<uint32_t> startPos;
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)
@@ -90,7 +90,7 @@ Mesh CreateUnitSphere()
 		}
 	}
 
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)
@@ -107,7 +107,7 @@ Mesh CreateUnitSphere()
 		}
 	}
 
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)
@@ -124,7 +124,7 @@ Mesh CreateUnitSphere()
 		}
 	}
 
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)
@@ -141,7 +141,7 @@ Mesh CreateUnitSphere()
 		}
 	}
 
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)
@@ -158,7 +158,7 @@ Mesh CreateUnitSphere()
 		}
 	}
 
-	startPos.push_back(points.size());
+	startPos.push_back(static_cast<uint32_t>(points.size()));
 	for(uint32_t i = 0; i < num; i++)
 	{
 		for(uint32_t j = 0; j < num; j++)

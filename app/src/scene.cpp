@@ -1,6 +1,7 @@
 #include "scene.h"
 
 #include <vulkan/vulkan.h>
+#include <buffers/creator_buffer.h>
 
 #include <algorithm>
 
@@ -94,10 +95,12 @@ void Scene::createBoxes()
 	boxes_.push_back({ "button_pause",	{ buttonSpacing *  1.5f, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
 	boxes_.push_back({ "button_start",	{ buttonSpacing *  2.5f, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
 
-	const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, center.z) + 
-											glm::vec3(roomSize.x, 0.0f, roomSize.z) / 3.0f + 
+		const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, 0.0f) + 
+											glm::vec3(roomSize.x, 0.0f, 0.0f) / 6.0f + 
 											glm::vec3(0.0f, legHeight, 0.0f);
 	boxes_.push_back({ "floor_lamp_stand", centerFloorLampStand, {0.10f, legHeight * 2.0f, 0.10f}, wood, 0.08f });
+	
+	
 
 	// Only the table blocks movement; everything else stands on top of it.
 	blockers_.clear();
@@ -106,9 +109,25 @@ void Scene::createBoxes()
 		{  table_half_width, table_top_y,  table_half_depth } });
 }
 
+void Scene::createSpheres()
+{
+	spheres_.clear();
+
+	const glm::vec3 lamp = { 0.9f, 0.9f, 0.9f };
+	const glm::vec3 center = { 0.0f, -0.05f, 0.0f };
+	const glm::vec3 roomSize = { 24.0f, 0.1f, 24.0f };
+	const float legHeight = table_top_y - 0.08f;
+	const float diameter = 0.30f;
+	const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, 0.0f) + 
+											glm::vec3(roomSize.x, 0.0f, 0.0f) / 6.0f + 
+											glm::vec3(0.0f, legHeight, 0.0f);
+	spheres_.push_back({ "floor_lamp", centerFloorLampStand + glm::vec3(0.0f, legHeight + diameter / 2.0f, 0.0f), {diameter, diameter, diameter}, lamp, 0.08f });
+}
+
 void Scene::Build(const render::BuildContext& context)
 {
 	createBoxes();
+	createSpheres();
 
 	cube_ = CreateUnitCube();
 
@@ -121,11 +140,14 @@ void Scene::Build(const render::BuildContext& context)
 
 	bottom_level_ = render::CreatorAccelerationStructure::CreateBottomLevel(context, geometry);
 
+	const uint64_t cubeVertexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.vertex_buffer.buffer);
+	const uint64_t cubeIndexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.index_buffer.buffer);
+
 	std::vector<VkAccelerationStructureInstanceKHR> instances;
 	std::vector<shaders::RtInstance> instanceData;
 
-	instances.reserve(boxes_.size());
-	instanceData.reserve(boxes_.size());
+	instances.reserve(boxes_.size() + spheres_.size());
+	instanceData.reserve(boxes_.size() + spheres_.size());
 
 	for (uint32_t i = 0; i < boxes_.size(); ++i)
 	{
@@ -145,9 +167,52 @@ void Scene::Build(const render::BuildContext& context)
 
 		shaders::RtInstance data{};
 		data.albedo_reflectivity = glm::vec4(box.albedo, box.reflectivity);
-		// Every instance shares the one cube, so both offsets stay at the start of the buffers.
-		data.first_index = 0;
-		data.first_vertex = 0;
+		// Each instance shares one cube, so all cubes have the same addresses.
+		data.vertex_buffer_address = cubeVertexAddress;
+		data.index_buffer_address = cubeIndexAddress;
+
+		data.emissive = 0;
+		data.padding = 0;
+
+		instanceData.push_back(data);
+	}
+
+	sphere_ = CreateUnitSphere();
+
+	render::GeometryDescription geometrySphere{};
+	geometrySphere.vertices = sphere_.vertices.data();
+	geometrySphere.vertex_count = static_cast<uint32_t>(sphere_.vertices.size());
+	geometrySphere.vertex_stride = sizeof(shaders::RtVertex);
+	geometrySphere.indices = sphere_.indices.data();
+	geometrySphere.index_count = static_cast<uint32_t>(sphere_.indices.size());
+
+	bottom_level_sphere_ = render::CreatorAccelerationStructure::CreateBottomLevel(context, geometrySphere);
+
+	const uint64_t sphereVertexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_sphere_.vertex_buffer.buffer);
+	const uint64_t sphereIndexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_sphere_.index_buffer.buffer);
+
+	for (uint32_t i = 0; i < spheres_.size(); ++i)
+	{
+		const Box& box = spheres_[i];
+
+		// A row major 3x4 transform: the diagonal scales the unit cube to the box size,
+		// the last column moves it into place.
+		VkTransformMatrixKHR transform{};
+		transform.matrix[0][0] = box.size.x;
+		transform.matrix[1][1] = box.size.y;
+		transform.matrix[2][2] = box.size.z;
+		transform.matrix[0][3] = box.center.x;
+		transform.matrix[1][3] = box.center.y;
+		transform.matrix[2][3] = box.center.z;
+
+		instances.push_back(render::CreatorAccelerationStructure::MakeInstance(transform, bottom_level_sphere_, static_cast<uint32_t>(boxes_.size()) + i));
+
+		shaders::RtInstance data{};
+		data.albedo_reflectivity = glm::vec4(box.albedo, box.reflectivity);
+		// Each instance shares one cube, so all cubes have the same addresses.
+		data.vertex_buffer_address = sphereVertexAddress;
+		data.index_buffer_address = sphereIndexAddress;
+
 		data.emissive = 0;
 		data.padding = 0;
 

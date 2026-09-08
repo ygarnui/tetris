@@ -44,8 +44,6 @@ namespace tetris
 
 		[[nodiscard]] std::shared_ptr<render::DataAccelerationStructure> GetTopLevel() const { return top_level_; }
 
-		[[nodiscard]] std::shared_ptr<render::DataBuffer> GetVertexBuffer() const { return bottom_level_.vertex_buffer.buffer; }
-		[[nodiscard]] std::shared_ptr<render::DataBuffer> GetIndexBuffer() const { return bottom_level_.index_buffer.buffer; }
 		[[nodiscard]] std::shared_ptr<render::DataBuffer> GetInstanceBuffer() const { return instance_buffer_.buffer; }
 
 		/*!
@@ -57,12 +55,18 @@ namespace tetris
 
 	private:
 		void createBoxes();
+		void createSpheres();
 
 		std::vector<Box> boxes_;
 		std::vector<Blocker> blockers_;
+		std::vector<Box> spheres_;
 
 		Mesh cube_;
 		render::DataBottomLevel bottom_level_;
+		
+		Mesh sphere_;
+		render::DataBottomLevel bottom_level_sphere_;
+
 		std::shared_ptr<render::DataAccelerationStructure> top_level_;
 		render::BufferWithMemory instance_buffer_;
 	};
