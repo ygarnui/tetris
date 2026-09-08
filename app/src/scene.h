@@ -68,8 +68,8 @@ namespace tetris
 		[[nodiscard]] const Box* PickBox(const Ray& ray) const;
 
 		/*!
-		\brief Rebuild the board and its active piece as small cubes on the screen, and the
-		top level acceleration structure to match.
+		\brief Rebuild the board, the active piece, the next piece preview and the score
+		display as small cubes, and the top level acceleration structure to match.
 
 		The caller must have waited for the device to go idle first (see the call site in
 		main.cpp) and must follow this with ManagerRayTracing::UpdateTopLevel: the old top
@@ -80,13 +80,17 @@ namespace tetris
 		\param[in] activeType shape of the currently falling piece
 		\param[in] activeRotation orientation of the currently falling piece
 		\param[in] activePosition top-left of the falling piece's 4x4 box, in board cell coordinates
+		\param[in] nextType shape shown on the next-piece preview
+		\param[in] score shown on the score display, clamped to what its digit count can hold
 		*/
-		void UpdateBoard(
+		void UpdateGameplay(
 			const render::BuildContext& context,
 			const tetris::game::Board& board,
 			tetris::game::PieceType activeType,
 			tetris::game::Rotation activeRotation,
-			tetris::game::Point activePosition);
+			tetris::game::Point activePosition,
+			tetris::game::PieceType nextType,
+			int score);
 
 	private:
 		void createBoxes();
@@ -96,9 +100,13 @@ namespace tetris
 		std::vector<Blocker> blockers_;
 		std::vector<Box> spheres_;
 
-		/*! \brief World space placement of the "screen" box, cached for UpdateBoard. */
+		/*! \brief World space placement of the "screen"/"screen_next"/"screen_score" boxes. */
 		glm::vec3 screen_center_{};
 		glm::vec3 screen_size_{};
+		glm::vec3 next_screen_center_{};
+		glm::vec3 next_screen_size_{};
+		glm::vec3 score_screen_center_{};
+		glm::vec3 score_screen_size_{};
 
 		Mesh cube_;
 		render::DataBottomLevel bottom_level_;
@@ -106,7 +114,7 @@ namespace tetris
 		Mesh sphere_;
 		render::DataBottomLevel bottom_level_sphere_;
 
-		/*! \brief The floor/table/console/buttons/lamp, rebuilt into every UpdateBoard call. */
+		/*! \brief The floor/table/console/buttons/lamp, rebuilt into every UpdateGameplay call. */
 		std::vector<VkAccelerationStructureInstanceKHR> static_instances_;
 		std::vector<shaders::RtInstance> static_instance_data_;
 

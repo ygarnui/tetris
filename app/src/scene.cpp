@@ -19,6 +19,10 @@ namespace
 	constexpr float table_half_width = 1.2f;
 	constexpr float table_half_depth = 0.7f;
 
+	// Fixed width of the score display (leading zeros, arcade-style), shared by the instance
+	// buffer's capacity (Scene::Build) and the digit layout (Scene::UpdateGameplay).
+	constexpr int kScoreDigitCount = 5;
+
 	/*!
 	\brief Slab-method ray/AABB test.
 	\param[out] outDistance how far along the ray the box is first entered, valid only when
@@ -84,8 +88,8 @@ void Scene::createBoxes()
 	}
 
 	// The whole tetris unit is one flat slab lying on the table, like a phone lying face up:
-	// no upright cabinet, just a thin console with the screen and all six buttons set into
-	// its top face. Lay out the screen and the button row first, in x/z offsets from an
+	// no upright cabinet, just a thin console with the screens and all six buttons set into
+	// its top face. Lay out the screens and the button row first, in x/z offsets from an
 	// arbitrary origin, then size the console to wrap them with a margin of half a button's
 	// width on every side, then recentre the whole assembly on the table.
 	const glm::vec3 buttonSize = { 0.08f, 0.02f, 0.08f };
@@ -95,26 +99,66 @@ void Scene::createBoxes()
 	// The screen: horizontal but portrait, toward the back of the console, dark and only a
 	// little reflective, like glossy black plastic rather than glass. x:z is exactly the
 	// board's own aspect ratio (Board::kWidth : Board::kVisibleHeight = 10:20 = 1:2), so
-	// UpdateBoard's cells come out square instead of stretched.
+	// UpdateGameplay's cells come out square instead of stretched. Shifted a button's width
+	// to the left to leave room for the next-piece/score screens on the right.
 	const glm::vec3 screenSize = { 0.40f, 0.02f, 0.80f };
+	float screenX = -buttonSize.x;
 	float screenZ = -0.17f;
 
+	// Next piece preview: small and roughly square (it only ever shows one piece in its 4x4
+	// box), toward the back of the console, right of the main screen.
+	const glm::vec3 nextScreenSize = { 0.20f, 0.02f, 0.20f };
+
+	// Score display: wide and short, sized for a row of 5 LED digits (see UpdateGameplay).
+	const glm::vec3 scoreScreenSize = { 0.35f, 0.02f, 0.14f };
+
 	const float margin = buttonSize.x * 0.5f;
-	const float contentMaxX = buttonSpacing * 2.5f + buttonSize.x * 0.5f;
-	const float contentMinZ = std::min(screenZ - screenSize.z * 0.5f, buttonRowZ - buttonSize.z * 0.5f);
-	const float contentMaxZ = std::max(screenZ + screenSize.z * 0.5f, buttonRowZ + buttonSize.z * 0.5f);
+
+	// The next/score screens share a column to the right of the main screen, wide enough for
+	// whichever of the two is wider.
+	float rightColumnX = (screenX + screenSize.x * 0.5f) + margin + std::max(nextScreenSize.x, scoreScreenSize.x) * 0.5f;
+	float nextScreenZ = (screenZ - screenSize.z * 0.5f) + nextScreenSize.z * 0.5f; // flush with the main screen's back edge
+	float scoreScreenZ = ((nextScreenZ + nextScreenSize.z * 0.5f) + (buttonRowZ - buttonSize.z * 0.5f)) * 0.5f; // centred in the gap below it, above the buttons
+
+	const float buttonsMinX = buttonSpacing * -2.5f - buttonSize.x * 0.5f;
+	const float buttonsMaxX = buttonSpacing * 2.5f + buttonSize.x * 0.5f;
+	const float screenMinX = screenX - screenSize.x * 0.5f;
+	const float screenMaxX = screenX + screenSize.x * 0.5f;
+	const float nextMinX = rightColumnX - nextScreenSize.x * 0.5f;
+	const float nextMaxX = rightColumnX + nextScreenSize.x * 0.5f;
+	const float scoreMinX = rightColumnX - scoreScreenSize.x * 0.5f;
+	const float scoreMaxX = rightColumnX + scoreScreenSize.x * 0.5f;
+
+	const float contentMinX = std::min({ buttonsMinX, screenMinX, nextMinX, scoreMinX });
+	const float contentMaxX = std::max({ buttonsMaxX, screenMaxX, nextMaxX, scoreMaxX });
+	const float contentMinZ = std::min({
+		screenZ - screenSize.z * 0.5f,
+		buttonRowZ - buttonSize.z * 0.5f,
+		nextScreenZ - nextScreenSize.z * 0.5f,
+		scoreScreenZ - scoreScreenSize.z * 0.5f });
+	const float contentMaxZ = std::max({
+		screenZ + screenSize.z * 0.5f,
+		buttonRowZ + buttonSize.z * 0.5f,
+		nextScreenZ + nextScreenSize.z * 0.5f,
+		scoreScreenZ + scoreScreenSize.z * 0.5f });
 
 	const float tableTopThickness = 0.08f;
 	const glm::vec3 consoleSize = {
-		contentMaxX * 2.0f + margin * 2.0f,
+		(contentMaxX - contentMinX) + margin * 2.0f,
 		tableTopThickness * 0.5f,
 		(contentMaxZ - contentMinZ) + margin * 2.0f };
 
-	// Table centre is (0, 0) in x/z, and the console is already centred on it in x, so only
-	// the z offsets need shifting to bring the console's centre onto the table's centre.
-	const float recentre = -(contentMinZ + contentMaxZ) * 0.5f;
-	screenZ += recentre;
-	buttonRowZ += recentre;
+	// Recentre the whole assembly (screens, buttons, the column to the right) onto the
+	// table's centre - it is no longer symmetric in x now that the screens sit off to one
+	// side, so this shifts everything, buttons included, same as it always did in z.
+	const float recentreX = -(contentMinX + contentMaxX) * 0.5f;
+	const float recentreZ = -(contentMinZ + contentMaxZ) * 0.5f;
+	screenX += recentreX;
+	screenZ += recentreZ;
+	rightColumnX += recentreX;
+	nextScreenZ += recentreZ;
+	scoreScreenZ += recentreZ;
+	buttonRowZ += recentreZ;
 
 	const glm::vec3 consoleCenter = { 0.0f, table_top_y + consoleSize.y * 0.5f, 0.0f };
 	boxes_.push_back({ "console", consoleCenter, consoleSize, darkPlastic, 0.05f });
@@ -124,21 +168,32 @@ void Scene::createBoxes()
 	const float consoleTopY = consoleCenter.y + consoleSize.y * 0.5f;
 	const float proud = 0.004f;
 
-	const glm::vec3 screenCenter = { 0.0f, consoleTopY - screenSize.y * 0.5f + proud, screenZ };
+	const glm::vec3 screenCenter = { screenX, consoleTopY - screenSize.y * 0.5f + proud, screenZ };
 	boxes_.push_back({ "screen", screenCenter, screenSize, { 0.03f, 0.03f, 0.04f }, 0.20f });
 
-	// UpdateBoard lays the board's cells out over this same footprint.
+	const glm::vec3 nextScreenCenter = { rightColumnX, consoleTopY - nextScreenSize.y * 0.5f + proud, nextScreenZ };
+	boxes_.push_back({ "screen_next", nextScreenCenter, nextScreenSize, { 0.03f, 0.03f, 0.04f }, 0.20f });
+
+	const glm::vec3 scoreScreenCenter = { rightColumnX, consoleTopY - scoreScreenSize.y * 0.5f + proud, scoreScreenZ };
+	boxes_.push_back({ "screen_score", scoreScreenCenter, scoreScreenSize, { 0.03f, 0.03f, 0.04f }, 0.20f });
+
+	// UpdateGameplay lays the board, the next-piece preview and the score digits out over
+	// these same footprints.
 	screen_center_ = screenCenter;
 	screen_size_ = screenSize;
+	next_screen_center_ = nextScreenCenter;
+	next_screen_size_ = nextScreenSize;
+	score_screen_center_ = scoreScreenCenter;
+	score_screen_size_ = scoreScreenSize;
 
 	const float buttonY = consoleTopY - buttonSize.y * 0.5f + proud;
 
-	boxes_.push_back({ "button_left",	{ buttonSpacing * -2.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_right",	{ buttonSpacing * -1.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_rotate",	{ buttonSpacing * -0.5f, buttonY, buttonRowZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
-	boxes_.push_back({ "button_down",	{ buttonSpacing *  0.5f, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
-	boxes_.push_back({ "button_pause",	{ buttonSpacing *  1.5f, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
-	boxes_.push_back({ "button_start",	{ buttonSpacing *  2.5f, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
+	boxes_.push_back({ "button_left",	{ buttonSpacing * -2.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_right",	{ buttonSpacing * -1.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_rotate",	{ buttonSpacing * -0.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.90f, 0.50f, 0.12f }, 0.08f });
+	boxes_.push_back({ "button_down",	{ buttonSpacing *  0.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.20f, 0.45f, 0.85f }, 0.08f });
+	boxes_.push_back({ "button_pause",	{ buttonSpacing *  1.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.85f, 0.75f, 0.15f }, 0.08f });
+	boxes_.push_back({ "button_start",	{ buttonSpacing *  2.5f + recentreX, buttonY, buttonRowZ }, buttonSize, { 0.25f, 0.75f, 0.30f }, 0.08f });
 
 		const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, 0.0f) + 
 											glm::vec3(roomSize.x, 0.0f, 0.0f) / 6.0f + 
@@ -290,18 +345,23 @@ void Scene::Build(
 		instanceData.push_back(data);
 	}
 
-	// Cached so UpdateBoard can rebuild instances/instanceData every tick without redoing the
-	// (fixed) floor/table/console/buttons/lamp part of the scene.
+	// Cached so UpdateGameplay can rebuild instances/instanceData every tick without redoing
+	// the (fixed) floor/table/console/buttons/lamp part of the scene.
 	static_instances_ = instances;
 	static_instance_data_ = instanceData;
 
 	top_level_ = render::CreatorAccelerationStructure::CreateTopLevel(context, instances);
 
-	// Sized for the static scene plus every board cell and the active piece, so UpdateBoard
-	// can rewrite this same buffer's contents in place instead of reallocating it every tick
-	// (which would otherwise mean rewriting the RayTracingBinding::Instances descriptor too).
+	// Sized for the static scene plus every board cell, the active piece, the next-piece
+	// preview and the (always fully instanced, see UpdateGameplay) score segments, so
+	// UpdateGameplay can rewrite this same buffer's contents in place instead of reallocating
+	// it every tick (which would otherwise mean rewriting the RayTracingBinding::Instances
+	// descriptor too).
 	constexpr uint32_t maxDynamicInstances =
-		tetris::game::Board::kWidth * tetris::game::Board::kVisibleHeight + 4;
+		tetris::game::Board::kWidth * tetris::game::Board::kVisibleHeight // board cells
+		+ 4  // active piece
+		+ 4  // next-piece preview
+		+ kScoreDigitCount * 7; // score: one instance per segment, lit or not
 	const uint64_t instanceBufferCapacity =
 		static_cast<uint64_t>(instanceData.size() + maxDynamicInstances) * sizeof(shaders::RtInstance);
 
@@ -334,14 +394,42 @@ namespace
 		}
 		return { 1.0f, 1.0f, 1.0f }; // unreachable, every PieceType is handled above
 	}
+
+	// Bits of the mask SegmentsForDigit returns, named after the classic seven-segment
+	// layout: a top, g middle, d bottom, b/c the right side top/bottom, f/e the left side.
+	enum SevenSegment : uint32_t
+	{
+		SegA = 1u << 0, SegB = 1u << 1, SegC = 1u << 2, SegD = 1u << 3,
+		SegE = 1u << 4, SegF = 1u << 5, SegG = 1u << 6,
+	};
+
+	uint32_t SegmentsForDigit(int digit)
+	{
+		switch (digit)
+		{
+			case 0: return SegA | SegB | SegC | SegD | SegE | SegF;
+			case 1: return SegB | SegC;
+			case 2: return SegA | SegB | SegG | SegE | SegD;
+			case 3: return SegA | SegB | SegG | SegC | SegD;
+			case 4: return SegF | SegG | SegB | SegC;
+			case 5: return SegA | SegF | SegG | SegC | SegD;
+			case 6: return SegA | SegF | SegG | SegE | SegC | SegD;
+			case 7: return SegA | SegB | SegC;
+			case 8: return SegA | SegB | SegC | SegD | SegE | SegF | SegG;
+			case 9: return SegA | SegB | SegC | SegD | SegF | SegG;
+			default: return 0;
+		}
+	}
 }
 
-void Scene::UpdateBoard(
+void Scene::UpdateGameplay(
 	const render::BuildContext& context,
 	const tetris::game::Board& board,
 	tetris::game::PieceType activeType,
 	tetris::game::Rotation activeRotation,
-	tetris::game::Point activePosition)
+	tetris::game::Point activePosition,
+	tetris::game::PieceType nextType,
+	int score)
 {
 	using namespace tetris::game;
 
@@ -351,29 +439,15 @@ void Scene::UpdateBoard(
 	const uint64_t cubeVertexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.vertex_buffer.buffer);
 	const uint64_t cubeIndexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.index_buffer.buffer);
 
-	// Cells are laid out over the "screen" box's own footprint (x/z), sized independently per
-	// axis to fit whatever that box's current width/depth happen to be - matching the aspect
-	// ratio of the board itself is a separate, not yet done step.
-	const float cellSizeX = screen_size_.x / Board::kWidth;
-	const float cellSizeZ = screen_size_.z / Board::kVisibleHeight;
-	const glm::vec3 cellSize = { cellSizeX * 0.9f, 0.03f, cellSizeZ * 0.9f };
-
-	// A hair proud of the screen's top face, same idea as the buttons in createBoxes().
-	const float cellCenterY = screen_center_.y + screen_size_.y * 0.5f + cellSize.y * 0.5f + 0.004f;
-
-	// col 0 / visibleRow 0 is the near-left corner of the board as seen by a player standing
-	// in front of the console (matches the u=0/v=0 convention the button textures use: v = 0
-	// is "far", i.e. row 0, the spawn end of the board, renders toward the back of the screen).
-	auto addCell = [&](int col, int visibleRow, const glm::vec3& color)
+	// The one primitive every cube/segment below goes through: place the shared unit cube at
+	// a world space center/size/colour and append it to both the acceleration structure's
+	// instance list and its per-instance shading data.
+	auto addCube = [&](const glm::vec3& center, const glm::vec3& size, const glm::vec3& color)
 	{
-		const float localX = -screen_size_.x * 0.5f + cellSizeX * (static_cast<float>(col) + 0.5f);
-		const float localZ = -screen_size_.z * 0.5f + cellSizeZ * (static_cast<float>(visibleRow) + 0.5f);
-		const glm::vec3 center = { screen_center_.x + localX, cellCenterY, screen_center_.z + localZ };
-
 		VkTransformMatrixKHR transform{};
-		transform.matrix[0][0] = cellSize.x;
-		transform.matrix[1][1] = cellSize.y;
-		transform.matrix[2][2] = cellSize.z;
+		transform.matrix[0][0] = size.x;
+		transform.matrix[1][1] = size.y;
+		transform.matrix[2][2] = size.z;
 		transform.matrix[0][3] = center.x;
 		transform.matrix[1][3] = center.y;
 		transform.matrix[2][3] = center.z;
@@ -391,6 +465,30 @@ void Scene::UpdateBoard(
 		instanceData.push_back(data);
 	};
 
+	// One cell of a columns x rows grid laid out over a screen box's own footprint - used for
+	// both the board (10 x kVisibleHeight) and the next-piece preview (4 x 4). col 0 / row 0
+	// is the far corner (matches the u=0/v=0 convention the button textures use: v = 0 is
+	// "far", so row 0 - the board's spawn end - renders toward the back of the screen).
+	auto addGridCell = [&](
+		const glm::vec3& screenCenter, const glm::vec3& screenSize,
+		int columns, int rows, int col, int row,
+		const glm::vec3& color)
+	{
+		const float cellSizeX = screenSize.x / static_cast<float>(columns);
+		const float cellSizeZ = screenSize.z / static_cast<float>(rows);
+		const float localX = -screenSize.x * 0.5f + cellSizeX * (static_cast<float>(col) + 0.5f);
+		const float localZ = -screenSize.z * 0.5f + cellSizeZ * (static_cast<float>(row) + 0.5f);
+
+		constexpr float cubeHeight = 0.03f;
+		constexpr float fillFraction = 0.9f; // leaves a thin gap between cells, like grout lines
+		const glm::vec3 center = {
+			screenCenter.x + localX,
+			screenCenter.y + screenSize.y * 0.5f + cubeHeight * 0.5f + 0.004f, // a hair proud, as in createBoxes
+			screenCenter.z + localZ };
+
+		addCube(center, { cellSizeX * fillFraction, cubeHeight, cellSizeZ * fillFraction }, color);
+	};
+
 	for (int visibleRow = 0; visibleRow < Board::kVisibleHeight; ++visibleRow)
 	{
 		for (int col = 0; col < Board::kWidth; ++col)
@@ -398,7 +496,7 @@ void Scene::UpdateBoard(
 			const Cell cell = board.At(visibleRow + Board::kHiddenRows, col);
 			if (cell.has_value())
 			{
-				addCell(col, visibleRow, ColorForPiece(*cell));
+				addGridCell(screen_center_, screen_size_, Board::kWidth, Board::kVisibleHeight, col, visibleRow, ColorForPiece(*cell));
 			}
 		}
 	}
@@ -413,7 +511,73 @@ void Scene::UpdateBoard(
 		// piece before it scrolls into view.
 		if (visibleRow < 0 || visibleRow >= Board::kVisibleHeight) { continue; }
 
-		addCell(cellPosition.x, visibleRow, ColorForPiece(activeType));
+		addGridCell(screen_center_, screen_size_, Board::kWidth, Board::kVisibleHeight, cellPosition.x, visibleRow, ColorForPiece(activeType));
+	}
+
+	// Next-piece preview: always shown at rotation R0, in its native 4x4 box - simplest thing
+	// that reads correctly, even though different pieces land in different corners of it.
+	constexpr int kNextGridSize = 4;
+	for (const Point& offset : GetCells(nextType, Rotation::R0))
+	{
+		addGridCell(next_screen_center_, next_screen_size_, kNextGridSize, kNextGridSize, offset.x, offset.y, ColorForPiece(nextType));
+	}
+
+	// Score: kScoreDigitCount LED-style digits, each built from 7 segment cuboids. Unlit
+	// segments are instanced too (dark red rather than absent), like a real seven-segment
+	// display where the whole "8" pattern is always faintly visible.
+	{
+		const glm::vec3 litColor = { 0.95f, 0.10f, 0.05f };
+		const glm::vec3 unlitColor = { 0.14f, 0.02f, 0.02f };
+
+		const float digitAreaWidth = score_screen_size_.x * 0.92f;
+		const float digitHeight = score_screen_size_.z * 0.80f;
+		constexpr float kGapFraction = 0.18f; // gap between digits, as a fraction of one digit's width
+		const float digitWidth = digitAreaWidth / (kScoreDigitCount + (kScoreDigitCount - 1) * kGapFraction);
+		const float digitGap = digitWidth * kGapFraction;
+		const float totalWidth = kScoreDigitCount * digitWidth + (kScoreDigitCount - 1) * digitGap;
+
+		constexpr float segmentHeight = 0.03f; // cube "height" (y), like the board's cells
+		const float digitCenterY = score_screen_center_.y + score_screen_size_.y * 0.5f + segmentHeight * 0.5f + 0.004f;
+
+		const float thickness = digitWidth * 0.22f;
+		const float hLength = digitWidth * 0.8f;
+		const float vLength = digitHeight * 0.5f - thickness * 0.5f;
+		const float vOffsetZ = digitHeight * 0.25f;
+
+		struct SegmentSpec { uint32_t bit; float offsetX, offsetZ; float sizeX, sizeZ; };
+		const SegmentSpec segments[7] = {
+			{ SegA, 0.0f, -digitHeight * 0.5f + thickness * 0.5f, hLength, thickness },
+			{ SegG, 0.0f, 0.0f,                                   hLength, thickness },
+			{ SegD, 0.0f, digitHeight * 0.5f - thickness * 0.5f,  hLength, thickness },
+			{ SegF, -digitWidth * 0.5f + thickness * 0.5f, -vOffsetZ, thickness, vLength },
+			{ SegB,  digitWidth * 0.5f - thickness * 0.5f, -vOffsetZ, thickness, vLength },
+			{ SegE, -digitWidth * 0.5f + thickness * 0.5f,  vOffsetZ, thickness, vLength },
+			{ SegC,  digitWidth * 0.5f - thickness * 0.5f,  vOffsetZ, thickness, vLength },
+		};
+
+		int clampedScore = std::clamp(score, 0, static_cast<int>(std::pow(10, kScoreDigitCount)) - 1);
+		int digitValues[kScoreDigitCount];
+		for (int i = kScoreDigitCount - 1; i >= 0; --i)
+		{
+			digitValues[i] = clampedScore % 10;
+			clampedScore /= 10;
+		}
+
+		for (int digitIndex = 0; digitIndex < kScoreDigitCount; ++digitIndex)
+		{
+			const float digitLocalX = -totalWidth * 0.5f + digitWidth * 0.5f + static_cast<float>(digitIndex) * (digitWidth + digitGap);
+			const uint32_t litMask = SegmentsForDigit(digitValues[digitIndex]);
+
+			for (const SegmentSpec& segment : segments)
+			{
+				const glm::vec3 center = {
+					score_screen_center_.x + digitLocalX + segment.offsetX,
+					digitCenterY,
+					score_screen_center_.z + segment.offsetZ };
+
+				addCube(center, { segment.sizeX, segmentHeight, segment.sizeZ }, (litMask & segment.bit) ? litColor : unlitColor);
+			}
+		}
 	}
 
 	top_level_ = render::CreatorAccelerationStructure::CreateTopLevel(context, instances);

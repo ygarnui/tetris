@@ -325,12 +325,14 @@ int main()
 			// the kind of shortcut a fuller "double buffer the moving parts" version would
 			// remove later).
 			renderBase->DeviceWaitIdle();
-			scene.UpdateBoard(
+			scene.UpdateGameplay(
 				buildContext,
 				game.GetBoard(),
 				game.GetActivePieceType(),
 				game.GetActivePieceRotation(),
-				game.GetActivePiecePosition());
+				game.GetActivePiecePosition(),
+				game.GetNextPiece(),
+				game.GetScore());
 			render::ManagerRayTracing::Get()->UpdateTopLevel(windowId, scene.GetTopLevel());
 
 			// The command buffer was recorded once with vkCmdBindDescriptorSets baked in, so
