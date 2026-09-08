@@ -55,6 +55,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 	TETRIS_SHADER_PATH="${CMAKE_SOURCE_DIR}/vulkan_renderer/assets/shaders/"
 	TETRIS_SHADER_CACHE_PATH="${CMAKE_BINARY_DIR}/shader_cache/"
+	# Read straight out of the source tree, the same way the shaders are.
+	TETRIS_TEXTURE_PATH="${CMAKE_SOURCE_DIR}/vulkan_renderer/assets/textures/"
 	GLM_FORCE_DEPTH_ZERO_TO_ONE
 	GLM_ENABLE_EXPERIMENTAL
 	NOMINMAX

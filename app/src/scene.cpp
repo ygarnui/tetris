@@ -184,7 +184,9 @@ const Box* Scene::PickBox(const Ray& ray) const
 	return closest;
 }
 
-void Scene::Build(const render::BuildContext& context)
+void Scene::Build(
+	const render::BuildContext& context,
+	const std::unordered_map<std::string, uint32_t>& textureIndexByBoxName)
 {
 	createBoxes();
 	createSpheres();
@@ -232,7 +234,9 @@ void Scene::Build(const render::BuildContext& context)
 		data.index_buffer_address = cubeIndexAddress;
 
 		data.emissive = 0;
-		data.texture_index = RT_NO_TEXTURE;
+
+		const auto textureIt = textureIndexByBoxName.find(box.name);
+		data.texture_index = textureIt != textureIndexByBoxName.end() ? textureIt->second : RT_NO_TEXTURE;
 
 		instanceData.push_back(data);
 	}

@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace tetris
@@ -38,9 +39,13 @@ namespace tetris
 		/*!
 		\brief Create the geometry, the acceleration structures and the instance buffer.
 		\param[in] context the device the resources are created on
+		\param[in] textureIndexByBoxName index into RayTracingPassDescription::textures for a
+		box's top face, keyed by Box::name; a box not listed here shades from its albedo alone
 		\throw runtime_error if any Vulkan resource cannot be created
 		*/
-		void Build(const render::BuildContext& context);
+		void Build(
+			const render::BuildContext& context,
+			const std::unordered_map<std::string, uint32_t>& textureIndexByBoxName = {});
 
 		[[nodiscard]] std::shared_ptr<render::DataAccelerationStructure> GetTopLevel() const { return top_level_; }
 

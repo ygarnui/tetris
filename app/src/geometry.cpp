@@ -55,10 +55,13 @@ Mesh CreateUnitCube()
 
 		if (face == topFace)
 		{
-			mesh.vertices.push_back({ center - tangent * 0.5f - bitangent * 0.5f, normal, { 0.0f, 0.0f } });
-			mesh.vertices.push_back({ center + tangent * 0.5f - bitangent * 0.5f, normal, { 1.0f, 0.0f } });
-			mesh.vertices.push_back({ center + tangent * 0.5f + bitangent * 0.5f, normal, { 1.0f, 1.0f } });
-			mesh.vertices.push_back({ center - tangent * 0.5f + bitangent * 0.5f, normal, { 0.0f, 1.0f } });
+			// v is flipped relative to the (tangent, bitangent) corners: bitangent points
+			// toward the camera (world -Z is "away"/top of screen), while a texture's v = 0
+			// is its top row, so leaving v unflipped would render every button upside down.
+			mesh.vertices.push_back({ center - tangent * 0.5f - bitangent * 0.5f, normal, { 0.0f, 1.0f } });
+			mesh.vertices.push_back({ center + tangent * 0.5f - bitangent * 0.5f, normal, { 1.0f, 1.0f } });
+			mesh.vertices.push_back({ center + tangent * 0.5f + bitangent * 0.5f, normal, { 1.0f, 0.0f } });
+			mesh.vertices.push_back({ center - tangent * 0.5f + bitangent * 0.5f, normal, { 0.0f, 0.0f } });
 		}
 		else
 		{

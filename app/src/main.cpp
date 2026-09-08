@@ -11,7 +11,8 @@
 #include <raytracing/manager_ray_tracing.h>
 #include <textures/vulkan_manager_textures.h>
 
-#include <interface_image_object.h>
+#include <buffer_description.h>
+#include <image_loader.h>
 #include <logger_instance.h>
 
 #include <game.h>
@@ -25,6 +26,8 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace
@@ -135,8 +138,39 @@ int main()
 
 		std::cout << "device: " << renderBase->GetNamePhysicalDevice(windowId) << std::endl;
 
+		// Each cabinet button gets the texture matching its name; every other box's
+		// RtInstance::texture_index stays RT_NO_TEXTURE (Scene::Build's default), so it keeps
+		// shading from its plain albedo.
+		const std::vector<std::pair<std::string, std::string>> buttonTextureFiles = {
+			{ "button_left",   "left.png" },
+			{ "button_right",  "right.png" },
+			{ "button_rotate", "rotate.png" },
+			{ "button_down",   "down.png" },
+			{ "button_pause",  "pause.png" },
+			{ "button_start",  "play.png" },
+		};
+
+		std::vector<VkDescriptorImageInfo> buttonTextureInfos;
+		std::unordered_map<std::string, uint32_t> textureIndexByBoxName;
+
+		for (const auto& [boxName, fileName] : buttonTextureFiles)
+		{
+			const description::ImportImageDescription imageDescription(std::string(TETRIS_TEXTURE_PATH) + fileName);
+			const auto image = image::ImageLoader::CreateTextureImage(imageDescription, true);
+
+			const render::TextureId textureId = render::VulkanManagerTextures::Get()->CreateTexture(windowId, image);
+
+			VkDescriptorImageInfo imageInfo{};
+			imageInfo.sampler = render::VulkanManagerTextures::Get()->GetSamplerData(textureId)->sampler;
+			imageInfo.imageView = render::VulkanManagerTextures::Get()->GetImageViewData(textureId)->image_view;
+			imageInfo.imageLayout = render::VulkanManagerTextures::Get()->GetImageLayout(textureId);
+
+			textureIndexByBoxName[boxName] = static_cast<uint32_t>(buttonTextureInfos.size());
+			buttonTextureInfos.push_back(imageInfo);
+		}
+
 		tetris::Scene scene;
-		scene.Build(buildContext);
+		scene.Build(buildContext, textureIndexByBoxName);
 
 		tetris::Camera camera;
 		camera.SetBlockers(scene.GetBlockers());
@@ -152,23 +186,6 @@ int main()
 		const render::ShaderProgramId shaderProgramId =
 			renderBase->GetManagerShaderProgram()->CreateShaderProgram(windowId, shaderDescriptions);
 
-		// A 1x1 white pixel, standing in for every slot of the shader's texture array until
-		// real button/screen textures are loaded (RtInstance::texture_index defaults to
-		// RT_NO_TEXTURE everywhere, so nothing samples this yet - it only exists to satisfy
-		// Vulkan's requirement that every element of a bound descriptor array be valid).
-		const std::vector<uint8_t> whitePixel = { 255, 255, 255, 255 };
-		auto placeholderTextureImage = std::make_shared<image::InterfaceImageObject>(
-			1, 1, description::Format::R8G8B8A8_UNORM, whitePixel);
-		placeholderTextureImage->is_mipmaps_enabled = false;
-
-		const render::TextureId placeholderTextureId =
-			render::VulkanManagerTextures::Get()->CreateTexture(windowId, placeholderTextureImage);
-
-		VkDescriptorImageInfo placeholderTextureInfo{};
-		placeholderTextureInfo.sampler = render::VulkanManagerTextures::Get()->GetSamplerData(placeholderTextureId)->sampler;
-		placeholderTextureInfo.imageView = render::VulkanManagerTextures::Get()->GetImageViewData(placeholderTextureId)->image_view;
-		placeholderTextureInfo.imageLayout = render::VulkanManagerTextures::Get()->GetImageLayout(placeholderTextureId);
-
 		render::RayTracingPassDescription passDescription{};
 		passDescription.window_id = windowId;
 		passDescription.shader_program_id = shaderProgramId;
@@ -177,7 +194,7 @@ int main()
 		// itself if a resize changes how many images there are.
 		passDescription.uniform_buffer_size = sizeof(shaders::RtCamera);
 		passDescription.instance_buffer = scene.GetInstanceBuffer();
-		passDescription.textures = { placeholderTextureInfo };
+		passDescription.textures = buttonTextureInfos;
 		passDescription.max_recursion_depth = 1;
 
 		render::ManagerRayTracing::Get()->CreatePass(passDescription);
