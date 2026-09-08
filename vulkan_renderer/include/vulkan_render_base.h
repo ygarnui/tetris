@@ -64,30 +64,6 @@ class VulkanRenderBase : public RenderBase
 {
 public:
 
-	CullingResources createCullingResources(
-		GraphicsWindowId idWindow,
-		uint32_t maxPatches,
-		VertexBufferId vertexBufferId,
-		UniformBufferId uniformBufferId
-	);
-
-	void addCullingToCommandBuffer(
-		GraphicsWindowId idWindow,
-		CommandBufferId commandBufferId,
-		const CullingResources& resources,
-		uint32_t currentPatchCount,
-		const glm::vec3& cubeMin,
-		const glm::vec3& cubeMax,
-		size_t numImage
-	);
-
-	CullingResources createMeshletRsources(
-		GraphicsWindowId idWindow,
-		uint32_t maxPatches,
-		VertexBufferId vertexBufferId,
-		UniformBufferId uniformBufferId
-	);
-
 	VulkanRenderBase(
 		std::vector<const char*> externalExtensions,
 		std::shared_ptr<general::InterfaceManagerAssetRender> managerAsset);
