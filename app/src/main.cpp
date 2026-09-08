@@ -106,8 +106,6 @@ int main()
 		// it (GLFW_CURSOR_DISABLED) only while the right mouse button drags the view.
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
-		std::filesystem::create_directories(TETRIS_SHADER_CACHE_PATH);
-
 		auto assetManager = std::make_shared<tetris::AssetManager>();
 		auto renderBase = std::make_shared<render::VulkanRenderBase>(glfwInstanceExtensions(), assetManager);
 
@@ -155,7 +153,8 @@ int main()
 
 		for (const auto& [boxName, fileName] : buttonTextureFiles)
 		{
-			const description::ImportImageDescription imageDescription(std::string(TETRIS_TEXTURE_PATH) + fileName);
+			const description::ImportImageDescription imageDescription(
+				(std::filesystem::path(assetManager->GetTexturePath()) / fileName).string());
 			const auto image = image::ImageLoader::CreateTextureImage(imageDescription, true);
 
 			const render::TextureId textureId = render::VulkanManagerTextures::Get()->CreateTexture(windowId, image);

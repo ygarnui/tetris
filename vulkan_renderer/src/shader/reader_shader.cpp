@@ -9,17 +9,21 @@ namespace render
 {
     std::string ReaderShader::ReadFile(const std::string& filepath)
     {
-        std::string pathToAssets;
-        auto pos = filepath.find(".h");
+        // A #include target (globals/raytracing.h and friends) is relative to the asset root
+        // and needs it joined on; the top level shader (already the full path built by
+        // ManagerShaderModule::addShader) does not.
+        std::filesystem::path fullPath = filepath;
+        const auto pos = filepath.find(".h");
         if (pos < filepath.size())
         {
-            pathToAssets = ManagerAssetsVulkan::GetInterface()->GetAssetPath();
+            fullPath = std::filesystem::path(ManagerAssetsVulkan::GetInterface()->GetAssetPath()) / filepath;
         }
-        std::ifstream file(pathToAssets + filepath, std::ios::ate | std::ios::binary);
+
+        std::ifstream file(fullPath, std::ios::ate | std::ios::binary);
 
         if (!file.is_open())
         {
-            LOGEXC(std::runtime_error, "[ReaderShader::ReadFile] failed to open file: " + filepath);
+            LOGEXC(std::runtime_error, "[ReaderShader::ReadFile] failed to open file: " + fullPath.string());
         }
 
         const size_t fileSize = (size_t)file.tellg();

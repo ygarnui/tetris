@@ -64,7 +64,9 @@ void Scene::createBoxes()
 {
 	boxes_.clear();
 
-	const glm::vec3 darkPlastic = { 0.10f, 0.11f, 0.13f };
+	// Lighter than the screens (albedo ~0.03-0.04, see createBoxes below) on purpose, so their
+	// edges read clearly against the console instead of blending into it.
+	const glm::vec3 consolePlastic = { 0.30f, 0.32f, 0.36f };
 	const glm::vec3 wood = { 0.42f, 0.28f, 0.17f };
 
 	const glm::vec3 center = { 0.0f, -0.05f, 0.0f };
@@ -161,7 +163,7 @@ void Scene::createBoxes()
 	buttonRowZ += recentreZ;
 
 	const glm::vec3 consoleCenter = { 0.0f, table_top_y + consoleSize.y * 0.5f, 0.0f };
-	boxes_.push_back({ "console", consoleCenter, consoleSize, darkPlastic, 0.05f });
+	boxes_.push_back({ "console", consoleCenter, consoleSize, consolePlastic, 0.05f });
 
 	// Everything on the console face sits a hair proud of it, so it doesn't get swallowed by
 	// the console box it overlaps.

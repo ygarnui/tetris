@@ -16,6 +16,7 @@ FetchContent_Declare(glfw
 FetchContent_MakeAvailable(glfw)
 
 set(SRC
+	src/asset_manager.cpp
 	src/asset_manager.h
 
 	src/camera.cpp
