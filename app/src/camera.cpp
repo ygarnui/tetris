@@ -145,6 +145,28 @@ void Camera::Update(GLFWwindow* window, const float deltaSeconds)
 	position_.y = eye_height;
 }
 
+Ray Camera::ScreenPointToRay(const glm::vec2& pixel, const glm::vec2& windowSize, const float aspect) const
+{
+	const glm::vec2 uv = pixel / windowSize;
+	const glm::vec2 ndc = uv * 2.0f - 1.0f;
+
+	const glm::vec3 forward = GetForward();
+	const glm::mat4 view = glm::lookAt(position_, position_ + forward, glm::vec3(0.0f, 1.0f, 0.0f));
+
+	glm::mat4 projection = glm::perspective(glm::radians(field_of_view_degrees), aspect, near_plane, far_plane);
+	// Vulkan's clip space has y pointing down compared to the OpenGL convention glm uses.
+	projection[1][1] *= -1.0f;
+
+	const glm::mat4 viewInverse = glm::inverse(view);
+	const glm::mat4 projectionInverse = glm::inverse(projection);
+
+	const glm::vec4 origin = viewInverse * glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+	const glm::vec4 target = projectionInverse * glm::vec4(ndc.x, ndc.y, 1.0f, 1.0f);
+	const glm::vec4 direction = viewInverse * glm::vec4(glm::normalize(glm::vec3(target)), 0.0f);
+
+	return Ray{ glm::vec3(origin), glm::normalize(glm::vec3(direction)) };
+}
+
 shaders::RtCamera Camera::MakeUniform(const float aspect, const bool aaEnabled) const
 {
 	const glm::vec3 forward = GetForward();

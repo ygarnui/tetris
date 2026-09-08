@@ -20,6 +20,15 @@ namespace tetris
 	};
 
 	/*!
+	\brief A world space ray, for CPU-side picking (e.g. clicking a cabinet button).
+	*/
+	struct Ray
+	{
+		glm::vec3 origin;
+		glm::vec3 direction;
+	};
+
+	/*!
 	\brief First person camera walking on the floor.
 
 	WASD to walk, eye height fixed. Mouse look is decoupled from the cursor: holding the
@@ -47,6 +56,26 @@ namespace tetris
 		\brief Set the boxes the player collides with, in world space.
 		*/
 		void SetBlockers(std::vector<Blocker> blockers);
+
+		/*!
+		\brief The world space ray through a point on the screen, for CPU-side picking.
+
+		Mirrors the primary ray computed per pixel in raytracing.rgen, evaluated here for one
+		specific point (the cursor) instead of every pixel.
+		\param[in] pixel cursor position in the same coordinate space as \p windowSize (top-left
+		origin, y down - what glfwGetCursorPos/glfwGetWindowSize report)
+		\param[in] windowSize width/height of that same coordinate space
+		\param[in] aspect width divided by height of the rendered image
+		*/
+		[[nodiscard]] Ray ScreenPointToRay(const glm::vec2& pixel, const glm::vec2& windowSize, const float aspect) const;
+
+		/*!
+		\brief Whether the view is currently being dragged (right mouse button held).
+
+		While looking around, the cursor is captured for mouse-look deltas rather than
+		pointing at anything on screen, so button picking is suppressed during this.
+		*/
+		[[nodiscard]] bool IsLooking() const noexcept { return right_mouse_was_down_; }
 
 		[[nodiscard]] glm::vec3 GetPosition() const noexcept { return position_; }
 		[[nodiscard]] glm::vec3 GetForward() const noexcept;

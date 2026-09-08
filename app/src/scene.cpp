@@ -4,6 +4,8 @@
 #include <buffers/creator_buffer.h>
 
 #include <algorithm>
+#include <cmath>
+#include <limits>
 
 namespace tetris
 {
@@ -14,6 +16,42 @@ namespace
 	constexpr float table_top_y = 0.79f;
 	constexpr float table_half_width = 1.2f;
 	constexpr float table_half_depth = 0.7f;
+
+	/*!
+	\brief Slab-method ray/AABB test.
+	\param[out] outDistance how far along the ray the box is first entered, valid only when
+	the function returns true
+	\return whether the ray hits the box at or after its origin
+	*/
+	bool IntersectRayAabb(const Ray& ray, const glm::vec3& boxMin, const glm::vec3& boxMax, float& outDistance)
+	{
+		float tMin = 0.0f;
+		float tMax = std::numeric_limits<float>::max();
+
+		for (int axis = 0; axis < 3; ++axis)
+		{
+			const float origin = ray.origin[axis];
+			const float direction = ray.direction[axis];
+
+			if (std::abs(direction) < 1e-8f)
+			{
+				// Parallel to this axis' slab: only a hit if already inside it.
+				if (origin < boxMin[axis] || origin > boxMax[axis]) { return false; }
+				continue;
+			}
+
+			float tNear = (boxMin[axis] - origin) / direction;
+			float tFar = (boxMax[axis] - origin) / direction;
+			if (tNear > tFar) { std::swap(tNear, tFar); }
+
+			tMin = std::max(tMin, tNear);
+			tMax = std::min(tMax, tFar);
+			if (tMin > tMax) { return false; }
+		}
+
+		outDistance = tMin;
+		return true;
+	}
 }
 
 void Scene::createBoxes()
@@ -122,6 +160,28 @@ void Scene::createSpheres()
 											glm::vec3(roomSize.x, 0.0f, 0.0f) / 6.0f + 
 											glm::vec3(0.0f, legHeight, 0.0f);
 	spheres_.push_back({ "floor_lamp", centerFloorLampStand + glm::vec3(0.0f, legHeight + diameter / 2.0f, 0.0f), {diameter, diameter, diameter}, lamp, 0.08f });
+}
+
+const Box* Scene::PickBox(const Ray& ray) const
+{
+	const Box* closest = nullptr;
+	float closestDistance = std::numeric_limits<float>::max();
+
+	for (const Box& box : boxes_)
+	{
+		const glm::vec3 halfSize = box.size * 0.5f;
+		const glm::vec3 boxMin = box.center - halfSize;
+		const glm::vec3 boxMax = box.center + halfSize;
+
+		float distance = 0.0f;
+		if (IntersectRayAabb(ray, boxMin, boxMax, distance) && distance < closestDistance)
+		{
+			closestDistance = distance;
+			closest = &box;
+		}
+	}
+
+	return closest;
 }
 
 void Scene::Build(const render::BuildContext& context)

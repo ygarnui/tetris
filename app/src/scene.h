@@ -53,6 +53,12 @@ namespace tetris
 
 		[[nodiscard]] const std::vector<Box>& GetBoxes() const { return boxes_; }
 
+		/*!
+		\brief The closest box the ray hits, for clicking a button under the cursor.
+		\return the hit box, or nullptr if the ray hits none of them
+		*/
+		[[nodiscard]] const Box* PickBox(const Ray& ray) const;
+
 	private:
 		void createBoxes();
 		void createSpheres();
