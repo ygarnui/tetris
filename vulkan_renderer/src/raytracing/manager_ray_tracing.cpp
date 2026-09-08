@@ -22,7 +22,12 @@ namespace
 	/*!
 	\brief Number of descriptors a single ray tracing set holds, as fixed by RayTracingBinding.
 	*/
-	constexpr uint32_t descriptors_per_set = 4;
+	constexpr uint32_t descriptors_per_set = 5;
+
+	/*!
+	\brief Mirrors RT_MAX_TEXTURES in globals/raytracing.h - see the comment there.
+	*/
+	constexpr uint32_t max_textures = 16;
 
 	BuildContext makeBuildContext(
 		const LogicalDeviceId& logicalDeviceId,
@@ -63,6 +68,11 @@ void ManagerRayTracing::CreatePass(const RayTracingPassDescription& description)
 	if (description.uniform_buffer_size == 0)
 	{
 		LOGEXC(std::invalid_argument, "[ManagerRayTracing::CreatePass] uniform_buffer_size is 0");
+	}
+
+	if (description.textures.empty())
+	{
+		LOGEXC(std::invalid_argument, "[ManagerRayTracing::CreatePass] textures must have at least one entry");
 	}
 
 	DetailRayTracingPass pass{};
@@ -112,7 +122,7 @@ void ManagerRayTracing::createDescriptorResources(DetailRayTracingPass& pass, co
 	pass.descriptor_sets.clear();
 	pass.descriptor_pool = CreatorDescriptorPool::CreateDescriptorPool(
 		descriptors_per_set,
-		descriptors_per_set,
+		max_textures,
 		numImages,
 		device);
 
@@ -137,6 +147,14 @@ void ManagerRayTracing::writeDescriptorSets(DetailRayTracingPass& pass)
 {
 	const auto device = ManagerDevice::Get()->GetLogicalDevice(pass.logical_device_id);
 	const auto& imageViews = ManagerSwapchain::Get()->GetImageViewData(pass.swapchain_id);
+
+	// Every element of the shader's texture array must be a valid descriptor; slots beyond
+	// what the caller supplied repeat its last entry. Copy it out before resize() rather than
+	// passing paddedTextures.back() straight in, since that reference would dangle the moment
+	// the resize reallocates the very vector it came from.
+	std::vector<VkDescriptorImageInfo> paddedTextures = pass.description.textures;
+	const VkDescriptorImageInfo lastTexture = paddedTextures.back();
+	paddedTextures.resize(max_textures, lastTexture);
 
 	for (size_t i = 0; i < pass.descriptor_sets.size(); ++i)
 	{
@@ -185,6 +203,10 @@ void ManagerRayTracing::writeDescriptorSets(DetailRayTracingPass& pass)
 
 		initWrite(pos, RayTracingBinding::Instances, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
 		writes[pos++].pBufferInfo = &instanceInfo;
+
+		initWrite(pos, RayTracingBinding::Textures, VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		writes[pos].descriptorCount = static_cast<uint32_t>(paddedTextures.size());
+		writes[pos++].pImageInfo = paddedTextures.data();
 
 		vkUpdateDescriptorSets(
 			device->device,

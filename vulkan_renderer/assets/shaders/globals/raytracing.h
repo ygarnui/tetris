@@ -34,6 +34,12 @@
 // albedo_reflectivity alone.
 #define RT_NO_TEXTURE 0xFFFFFFFFu
 
+// Fixed size of the sampler2D array bound at RT_BINDING_TEXTURES, indexed by
+// RtInstance::texture_index. Mirrored by hand in manager_ray_tracing.cpp, the same way
+// RT_BINDING_* is mirrored by RayTracingBinding - the two cannot drift apart without the
+// shaders failing to compile against the pipeline's descriptor set layout.
+#define RT_MAX_TEXTURES 16
+
 // ---------------------------------------------------------------------------------------
 // Descriptor bindings of set 0. Mirrored by RayTracingBinding on the C++ side.
 // ---------------------------------------------------------------------------------------
@@ -42,6 +48,7 @@
 #define RT_BINDING_OUTPUT_IMAGE 1
 #define RT_BINDING_CAMERA 2
 #define RT_BINDING_INSTANCES 3
+#define RT_BINDING_TEXTURES 4
 
 #ifdef __cplusplus
 	#pragma once

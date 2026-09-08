@@ -25,6 +25,7 @@ namespace render
 		OutputImage = 1,
 		Camera = 2,
 		Instances = 3,
+		Textures = 4,
 	};
 
 	/*!
@@ -47,6 +48,16 @@ namespace render
 		uint64_t uniform_buffer_size = 0;
 
 		std::shared_ptr<DataBuffer> instance_buffer;
+
+		/*!
+		\brief Combined image samplers bound at RayTracingBinding::Textures, indexed by
+		RtInstance::texture_index.
+
+		Must have at least one entry: every element of the shader's fixed-size texture array
+		(RT_MAX_TEXTURES in globals/raytracing.h) needs a valid descriptor, so slots beyond
+		what is supplied here are padded with a copy of the last entry.
+		*/
+		std::vector<VkDescriptorImageInfo> textures;
 
 		/*!
 		\brief How deep traceRayEXT may nest.

@@ -9,7 +9,9 @@
 #include <manager_swapchain.h>
 #include <manager_window.h>
 #include <raytracing/manager_ray_tracing.h>
+#include <textures/vulkan_manager_textures.h>
 
+#include <interface_image_object.h>
 #include <logger_instance.h>
 
 #include <game.h>
@@ -150,6 +152,23 @@ int main()
 		const render::ShaderProgramId shaderProgramId =
 			renderBase->GetManagerShaderProgram()->CreateShaderProgram(windowId, shaderDescriptions);
 
+		// A 1x1 white pixel, standing in for every slot of the shader's texture array until
+		// real button/screen textures are loaded (RtInstance::texture_index defaults to
+		// RT_NO_TEXTURE everywhere, so nothing samples this yet - it only exists to satisfy
+		// Vulkan's requirement that every element of a bound descriptor array be valid).
+		const std::vector<uint8_t> whitePixel = { 255, 255, 255, 255 };
+		auto placeholderTextureImage = std::make_shared<image::InterfaceImageObject>(
+			1, 1, description::Format::R8G8B8A8_UNORM, whitePixel);
+		placeholderTextureImage->is_mipmaps_enabled = false;
+
+		const render::TextureId placeholderTextureId =
+			render::VulkanManagerTextures::Get()->CreateTexture(windowId, placeholderTextureImage);
+
+		VkDescriptorImageInfo placeholderTextureInfo{};
+		placeholderTextureInfo.sampler = render::VulkanManagerTextures::Get()->GetSamplerData(placeholderTextureId)->sampler;
+		placeholderTextureInfo.imageView = render::VulkanManagerTextures::Get()->GetImageViewData(placeholderTextureId)->image_view;
+		placeholderTextureInfo.imageLayout = render::VulkanManagerTextures::Get()->GetImageLayout(placeholderTextureId);
+
 		render::RayTracingPassDescription passDescription{};
 		passDescription.window_id = windowId;
 		passDescription.shader_program_id = shaderProgramId;
@@ -158,6 +177,7 @@ int main()
 		// itself if a resize changes how many images there are.
 		passDescription.uniform_buffer_size = sizeof(shaders::RtCamera);
 		passDescription.instance_buffer = scene.GetInstanceBuffer();
+		passDescription.textures = { placeholderTextureInfo };
 		passDescription.max_recursion_depth = 1;
 
 		render::ManagerRayTracing::Get()->CreatePass(passDescription);
