@@ -5,6 +5,9 @@
 
 #include <raytracing/creator_acceleration_structure.h>
 
+#include <board.h>
+#include <types.h>
+
 #include <glm/glm.hpp>
 
 #include <memory>
@@ -64,6 +67,27 @@ namespace tetris
 		*/
 		[[nodiscard]] const Box* PickBox(const Ray& ray) const;
 
+		/*!
+		\brief Rebuild the board and its active piece as small cubes on the screen, and the
+		top level acceleration structure to match.
+
+		The caller must have waited for the device to go idle first (see the call site in
+		main.cpp) and must follow this with ManagerRayTracing::UpdateTopLevel: the old top
+		level is replaced here, and both it and the instance buffer's old contents must not
+		still be read by an in-flight frame when that happens.
+		\param[in] context the device the resources are (re)created on
+		\param[in] board the current playfield
+		\param[in] activeType shape of the currently falling piece
+		\param[in] activeRotation orientation of the currently falling piece
+		\param[in] activePosition top-left of the falling piece's 4x4 box, in board cell coordinates
+		*/
+		void UpdateBoard(
+			const render::BuildContext& context,
+			const tetris::game::Board& board,
+			tetris::game::PieceType activeType,
+			tetris::game::Rotation activeRotation,
+			tetris::game::Point activePosition);
+
 	private:
 		void createBoxes();
 		void createSpheres();
@@ -72,11 +96,19 @@ namespace tetris
 		std::vector<Blocker> blockers_;
 		std::vector<Box> spheres_;
 
+		/*! \brief World space placement of the "screen" box, cached for UpdateBoard. */
+		glm::vec3 screen_center_{};
+		glm::vec3 screen_size_{};
+
 		Mesh cube_;
 		render::DataBottomLevel bottom_level_;
-		
+
 		Mesh sphere_;
 		render::DataBottomLevel bottom_level_sphere_;
+
+		/*! \brief The floor/table/console/buttons/lamp, rebuilt into every UpdateBoard call. */
+		std::vector<VkAccelerationStructureInstanceKHR> static_instances_;
+		std::vector<shaders::RtInstance> static_instance_data_;
 
 		std::shared_ptr<render::DataAccelerationStructure> top_level_;
 		render::BufferWithMemory instance_buffer_;

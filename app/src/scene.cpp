@@ -3,6 +3,8 @@
 #include <vulkan/vulkan.h>
 #include <buffers/creator_buffer.h>
 
+#include <tetromino.h>
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -90,10 +92,11 @@ void Scene::createBoxes()
 	const float buttonSpacing = buttonSize.x * 1.5f; // half a button's width of gap between buttons
 	float buttonRowZ = 0.28f;
 
-	// The screen: horizontal but portrait, narrower along x than along z, toward the back of
-	// the console, dark and only a little reflective, like glossy black plastic rather than
-	// glass.
-	const glm::vec3 screenSize = { 0.50f, 0.02f, 0.62f };
+	// The screen: horizontal but portrait, toward the back of the console, dark and only a
+	// little reflective, like glossy black plastic rather than glass. x:z is exactly the
+	// board's own aspect ratio (Board::kWidth : Board::kVisibleHeight = 10:20 = 1:2), so
+	// UpdateBoard's cells come out square instead of stretched.
+	const glm::vec3 screenSize = { 0.40f, 0.02f, 0.80f };
 	float screenZ = -0.17f;
 
 	const float margin = buttonSize.x * 0.5f;
@@ -123,6 +126,10 @@ void Scene::createBoxes()
 
 	const glm::vec3 screenCenter = { 0.0f, consoleTopY - screenSize.y * 0.5f + proud, screenZ };
 	boxes_.push_back({ "screen", screenCenter, screenSize, { 0.03f, 0.03f, 0.04f }, 0.20f });
+
+	// UpdateBoard lays the board's cells out over this same footprint.
+	screen_center_ = screenCenter;
+	screen_size_ = screenSize;
 
 	const float buttonY = consoleTopY - buttonSize.y * 0.5f + proud;
 
@@ -283,13 +290,138 @@ void Scene::Build(
 		instanceData.push_back(data);
 	}
 
+	// Cached so UpdateBoard can rebuild instances/instanceData every tick without redoing the
+	// (fixed) floor/table/console/buttons/lamp part of the scene.
+	static_instances_ = instances;
+	static_instance_data_ = instanceData;
+
 	top_level_ = render::CreatorAccelerationStructure::CreateTopLevel(context, instances);
+
+	// Sized for the static scene plus every board cell and the active piece, so UpdateBoard
+	// can rewrite this same buffer's contents in place instead of reallocating it every tick
+	// (which would otherwise mean rewriting the RayTracingBinding::Instances descriptor too).
+	constexpr uint32_t maxDynamicInstances =
+		tetris::game::Board::kWidth * tetris::game::Board::kVisibleHeight + 4;
+	const uint64_t instanceBufferCapacity =
+		static_cast<uint64_t>(instanceData.size() + maxDynamicInstances) * sizeof(shaders::RtInstance);
 
 	instance_buffer_ = render::CreatorAccelerationStructure::CreateDeviceAddressBuffer(
 		context,
+		nullptr,
+		instanceBufferCapacity,
+		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+	render::CreatorBuffer::Write(
 		instanceData.data(),
 		instanceData.size() * sizeof(shaders::RtInstance),
-		VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+		instance_buffer_.device_memory);
+}
+
+namespace
+{
+	glm::vec3 ColorForPiece(tetris::game::PieceType type)
+	{
+		using tetris::game::PieceType;
+		switch (type)
+		{
+			case PieceType::I: return { 0.05f, 0.75f, 0.85f };
+			case PieceType::O: return { 0.85f, 0.80f, 0.10f };
+			case PieceType::T: return { 0.55f, 0.15f, 0.70f };
+			case PieceType::S: return { 0.20f, 0.75f, 0.25f };
+			case PieceType::Z: return { 0.80f, 0.15f, 0.15f };
+			case PieceType::J: return { 0.15f, 0.25f, 0.80f };
+			case PieceType::L: return { 0.85f, 0.50f, 0.10f };
+		}
+		return { 1.0f, 1.0f, 1.0f }; // unreachable, every PieceType is handled above
+	}
+}
+
+void Scene::UpdateBoard(
+	const render::BuildContext& context,
+	const tetris::game::Board& board,
+	tetris::game::PieceType activeType,
+	tetris::game::Rotation activeRotation,
+	tetris::game::Point activePosition)
+{
+	using namespace tetris::game;
+
+	std::vector<VkAccelerationStructureInstanceKHR> instances = static_instances_;
+	std::vector<shaders::RtInstance> instanceData = static_instance_data_;
+
+	const uint64_t cubeVertexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.vertex_buffer.buffer);
+	const uint64_t cubeIndexAddress = render::CreatorBuffer::GetBufferDeviceAddress(bottom_level_.index_buffer.buffer);
+
+	// Cells are laid out over the "screen" box's own footprint (x/z), sized independently per
+	// axis to fit whatever that box's current width/depth happen to be - matching the aspect
+	// ratio of the board itself is a separate, not yet done step.
+	const float cellSizeX = screen_size_.x / Board::kWidth;
+	const float cellSizeZ = screen_size_.z / Board::kVisibleHeight;
+	const glm::vec3 cellSize = { cellSizeX * 0.9f, 0.03f, cellSizeZ * 0.9f };
+
+	// A hair proud of the screen's top face, same idea as the buttons in createBoxes().
+	const float cellCenterY = screen_center_.y + screen_size_.y * 0.5f + cellSize.y * 0.5f + 0.004f;
+
+	// col 0 / visibleRow 0 is the near-left corner of the board as seen by a player standing
+	// in front of the console (matches the u=0/v=0 convention the button textures use: v = 0
+	// is "far", i.e. row 0, the spawn end of the board, renders toward the back of the screen).
+	auto addCell = [&](int col, int visibleRow, const glm::vec3& color)
+	{
+		const float localX = -screen_size_.x * 0.5f + cellSizeX * (static_cast<float>(col) + 0.5f);
+		const float localZ = -screen_size_.z * 0.5f + cellSizeZ * (static_cast<float>(visibleRow) + 0.5f);
+		const glm::vec3 center = { screen_center_.x + localX, cellCenterY, screen_center_.z + localZ };
+
+		VkTransformMatrixKHR transform{};
+		transform.matrix[0][0] = cellSize.x;
+		transform.matrix[1][1] = cellSize.y;
+		transform.matrix[2][2] = cellSize.z;
+		transform.matrix[0][3] = center.x;
+		transform.matrix[1][3] = center.y;
+		transform.matrix[2][3] = center.z;
+
+		const uint32_t index = static_cast<uint32_t>(instances.size());
+		instances.push_back(render::CreatorAccelerationStructure::MakeInstance(transform, bottom_level_, index));
+
+		shaders::RtInstance data{};
+		data.albedo_reflectivity = glm::vec4(color, 0.0f);
+		data.vertex_buffer_address = cubeVertexAddress;
+		data.index_buffer_address = cubeIndexAddress;
+		data.emissive = 0;
+		data.texture_index = RT_NO_TEXTURE;
+
+		instanceData.push_back(data);
+	};
+
+	for (int visibleRow = 0; visibleRow < Board::kVisibleHeight; ++visibleRow)
+	{
+		for (int col = 0; col < Board::kWidth; ++col)
+		{
+			const Cell cell = board.At(visibleRow + Board::kHiddenRows, col);
+			if (cell.has_value())
+			{
+				addCell(col, visibleRow, ColorForPiece(*cell));
+			}
+		}
+	}
+
+	for (const Point& offset : GetCells(activeType, activeRotation))
+	{
+		const Point cellPosition = activePosition + offset;
+		const int visibleRow = cellPosition.y - Board::kHiddenRows;
+
+		// Still inside the hidden rows just above the visible board (e.g. right after
+		// spawning): nothing to draw yet, matching the guideline behaviour of not showing a
+		// piece before it scrolls into view.
+		if (visibleRow < 0 || visibleRow >= Board::kVisibleHeight) { continue; }
+
+		addCell(cellPosition.x, visibleRow, ColorForPiece(activeType));
+	}
+
+	top_level_ = render::CreatorAccelerationStructure::CreateTopLevel(context, instances);
+
+	render::CreatorBuffer::Write(
+		instanceData.data(),
+		instanceData.size() * sizeof(shaders::RtInstance),
+		instance_buffer_.device_memory);
 }
 
 }

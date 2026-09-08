@@ -316,6 +316,31 @@ int main()
 
 			game.Tick(deltaSeconds);
 
+			// The board and the active piece are re-rendered as small cubes every tick, which
+			// means rebuilding the top level acceleration structure and rewriting the shared
+			// instance buffer every tick too. Both are read by whatever frame(s) the GPU still
+			// has in flight, so this waits for the device to go idle first rather than risk a
+			// rebuild racing a pending traceRaysKHR - simple and correct, at the cost of a full
+			// CPU/GPU sync point every tick (a non-issue for a scene this small, but exactly
+			// the kind of shortcut a fuller "double buffer the moving parts" version would
+			// remove later).
+			renderBase->DeviceWaitIdle();
+			scene.UpdateBoard(
+				buildContext,
+				game.GetBoard(),
+				game.GetActivePieceType(),
+				game.GetActivePieceRotation(),
+				game.GetActivePiecePosition());
+			render::ManagerRayTracing::Get()->UpdateTopLevel(windowId, scene.GetTopLevel());
+
+			// The command buffer was recorded once with vkCmdBindDescriptorSets baked in, so
+			// simply rewriting the descriptor via UpdateTopLevel is not enough - validation
+			// flags the recorded buffer as referencing a since-destroyed acceleration
+			// structure. Marking it dirty makes the next GetCommandBufferForDraw (inside
+			// DrawFrame) reset and re-record it, freshly binding whatever the descriptor set
+			// currently points at.
+			managerCommandBuffer->RecreateCommandBuffer(windowId, commandBufferId);
+
 			// Handed over now, uploaded inside the draw once the swapchain image is acquired.
 			const shaders::RtCamera cameraUniform = camera.MakeUniform(renderBase->GetAspect(windowId), aaEnabled);
 			render::ManagerRayTracing::Get()->SetUniform(windowId, &cameraUniform, sizeof(cameraUniform));
