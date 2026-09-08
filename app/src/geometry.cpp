@@ -38,6 +38,12 @@ Mesh CreateUnitCube()
 		{  0.0f,  0.0f,  1.0f },
 	};
 
+	// Face 4 is +Y, the only face a box in the scene ever presents a texture on (buttons and
+	// screens sit on top of the console, facing the camera looking down at it); every other
+	// face gets the (-1, -1) "no texture here" sentinel regardless of that instance's texture.
+	constexpr uint32_t topFace = 4;
+	const glm::vec2 noUv = { -1.0f, -1.0f };
+
 	for (uint32_t face = 0; face < 6; ++face)
 	{
 		const glm::vec3 normal = normals[face];
@@ -47,10 +53,20 @@ Mesh CreateUnitCube()
 
 		const uint32_t firstVertex = static_cast<uint32_t>(mesh.vertices.size());
 
-		mesh.vertices.push_back({ center - tangent * 0.5f - bitangent * 0.5f, normal });
-		mesh.vertices.push_back({ center + tangent * 0.5f - bitangent * 0.5f, normal });
-		mesh.vertices.push_back({ center + tangent * 0.5f + bitangent * 0.5f, normal });
-		mesh.vertices.push_back({ center - tangent * 0.5f + bitangent * 0.5f, normal });
+		if (face == topFace)
+		{
+			mesh.vertices.push_back({ center - tangent * 0.5f - bitangent * 0.5f, normal, { 0.0f, 0.0f } });
+			mesh.vertices.push_back({ center + tangent * 0.5f - bitangent * 0.5f, normal, { 1.0f, 0.0f } });
+			mesh.vertices.push_back({ center + tangent * 0.5f + bitangent * 0.5f, normal, { 1.0f, 1.0f } });
+			mesh.vertices.push_back({ center - tangent * 0.5f + bitangent * 0.5f, normal, { 0.0f, 1.0f } });
+		}
+		else
+		{
+			mesh.vertices.push_back({ center - tangent * 0.5f - bitangent * 0.5f, normal, noUv });
+			mesh.vertices.push_back({ center + tangent * 0.5f - bitangent * 0.5f, normal, noUv });
+			mesh.vertices.push_back({ center + tangent * 0.5f + bitangent * 0.5f, normal, noUv });
+			mesh.vertices.push_back({ center - tangent * 0.5f + bitangent * 0.5f, normal, noUv });
+		}
 
 		mesh.indices.push_back(firstVertex + 0);
 		mesh.indices.push_back(firstVertex + 1);
@@ -200,10 +216,12 @@ Mesh CreateUnitSphere()
 		}
 	}
 
+	// The sphere (the lamp bulb) never carries a texture, so its UV is unused; set it
+	// explicitly rather than relying on brace-init default-constructing it.
 	for(const auto& point : points)
 	{
 		auto value = glm::normalize(point);
-		mesh.vertices.push_back({value, value});
+		mesh.vertices.push_back({value, value, {-1.0f, -1.0f}});
 	}
 
 	return mesh;

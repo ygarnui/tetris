@@ -30,6 +30,10 @@
 
 #define RAY_MAX_DISTANCE 10000.0
 
+// RtInstance::texture_index for an instance that has no texture and is shaded from
+// albedo_reflectivity alone.
+#define RT_NO_TEXTURE 0xFFFFFFFFu
+
 // ---------------------------------------------------------------------------------------
 // Descriptor bindings of set 0. Mirrored by RayTracingBinding on the C++ side.
 // ---------------------------------------------------------------------------------------
@@ -57,6 +61,12 @@ struct RtVertex
 {
 	vec3 position;
 	vec3 normal;
+	/*!
+	Only meaningful on a face meant to carry a texture (currently the box's +Y face, since
+	that's the one buttons/screens present to the camera); every other face uses (-1, -1) so
+	the hit shader can tell "no texture here" apart from "textured, sampled at (0, 0)".
+	*/
+	vec2 uv;
 };
 
 
@@ -74,8 +84,8 @@ struct RtVertex
 /*!
 \brief Per instance shading data, indexed by gl_InstanceCustomIndexEXT.
 
-vertex_buffer_address and index_buffer_address are the addresses of this 
-instance's own vertex/index buffer, 
+vertex_buffer_address and index_buffer_address are the addresses of this
+instance's own vertex/index buffer,
 so different meshes can be added without touching a shared buffer.
 */
 struct RtInstance
@@ -86,7 +96,8 @@ struct RtInstance
 	uint64_t vertex_buffer_address;
 	uint64_t index_buffer_address;
 	uint emissive;
-	uint padding;
+	/*! \brief Index into the texture array, or RT_NO_TEXTURE to shade from albedo_reflectivity alone. */
+	uint texture_index;
 };
 
 /*!

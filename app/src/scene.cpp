@@ -232,7 +232,7 @@ void Scene::Build(const render::BuildContext& context)
 		data.index_buffer_address = cubeIndexAddress;
 
 		data.emissive = 0;
-		data.padding = 0;
+		data.texture_index = RT_NO_TEXTURE;
 
 		instanceData.push_back(data);
 	}
@@ -274,7 +274,7 @@ void Scene::Build(const render::BuildContext& context)
 		data.index_buffer_address = sphereIndexAddress;
 
 		data.emissive = 0;
-		data.padding = 0;
+		data.texture_index = RT_NO_TEXTURE;
 
 		instanceData.push_back(data);
 	}
