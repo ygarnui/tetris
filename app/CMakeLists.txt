@@ -65,6 +65,18 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 set_target_properties(${PROJECT_NAME} PROPERTIES
 	VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
 
+# A release build has no source tree on the machine it runs on (see main.cpp's
+# ResolveAssetPaths, which reads from here in that case via GetExecutableDirectory), so ship
+# a copy of the shaders/textures right next to the executable.
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+		"${CMAKE_SOURCE_DIR}/vulkan_renderer/assets/shaders"
+		"$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/shaders"
+	COMMAND ${CMAKE_COMMAND} -E copy_directory
+		"${CMAKE_SOURCE_DIR}/vulkan_renderer/assets/textures"
+		"$<TARGET_FILE_DIR:${PROJECT_NAME}>/assets/textures"
+)
+
 if (MSVC)
 	target_compile_options(${PROJECT_NAME} PRIVATE /W3)
 	# The Vulkan SDK ships shaderc and spirv-cross without their pdb files.
