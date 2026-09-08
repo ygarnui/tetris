@@ -12,6 +12,8 @@
 
 #include <logger_instance.h>
 
+#include <game.h>
+
 #define GLFW_INCLUDE_NONE
 #include <GLFW/glfw3.h>
 
@@ -20,6 +22,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace
@@ -50,6 +53,21 @@ namespace
 		}
 
 		return std::vector<const char*>(extensions, extensions + count);
+	}
+
+	/*!
+	\brief Fire the single-click action a cabinet button performs.
+
+	button_down is handled separately (SetSoftDrop, driven by whether the mouse is currently
+	held down over it, not a single click).
+	*/
+	void HandleButtonClick(tetris::game::Game& game, const std::string& buttonName)
+	{
+		if (buttonName == "button_left") { game.MoveLeft(); }
+		else if (buttonName == "button_right") { game.MoveRight(); }
+		else if (buttonName == "button_rotate") { game.Rotate(); }
+		else if (buttonName == "button_pause") { game.TogglePause(); }
+		else if (buttonName == "button_start") { game.Start(); }
 	}
 }
 
@@ -121,6 +139,8 @@ int main()
 		tetris::Camera camera;
 		camera.SetBlockers(scene.GetBlockers());
 
+		tetris::game::Game game;
+
 		const std::vector<description::ShaderDescription> shaderDescriptions = {
 			{ "raytracing.rgen",  description::ShaderType::RAY_GENERATION,  {} },
 			{ "raytracing.rmiss", description::ShaderType::RAY_MISS,        {} },
@@ -183,6 +203,11 @@ int main()
 		bool aaKeyWasDown = false;
 		std::cout << "1 toggles anti-aliasing (currently " << (aaEnabled ? "on" : "off") << ")" << std::endl;
 
+		// Edge detected the same way as the AA toggle, so a held click fires a cabinet button
+		// once rather than every frame.
+		bool leftMouseWasDown = false;
+		std::cout << "left click a cabinet button to press it" << std::endl;
+
 		while (!glfwWindowShouldClose(window))
 		{
 			glfwPollEvents();
@@ -215,6 +240,44 @@ int main()
 			}
 
 			camera.Update(window, deltaSeconds);
+
+			// While the view is being dragged, the cursor is captured for mouse-look deltas
+			// rather than pointing at anything on screen, so button picking is skipped.
+			if (camera.IsLooking())
+			{
+				leftMouseWasDown = false;
+				game.SetSoftDrop(false);
+			}
+			else
+			{
+				int windowWidth = 0;
+				int windowHeight = 0;
+				glfwGetWindowSize(window, &windowWidth, &windowHeight);
+
+				double cursorX = 0.0;
+				double cursorY = 0.0;
+				glfwGetCursorPos(window, &cursorX, &cursorY);
+
+				const tetris::Ray pickRay = camera.ScreenPointToRay(
+					glm::vec2(cursorX, cursorY),
+					glm::vec2(windowWidth, windowHeight),
+					renderBase->GetAspect(windowId));
+
+				const tetris::Box* hoveredBox = scene.PickBox(pickRay);
+
+				const bool leftMouseIsDown = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS;
+				const bool leftMouseClicked = leftMouseIsDown && !leftMouseWasDown;
+				leftMouseWasDown = leftMouseIsDown;
+
+				if (leftMouseClicked && hoveredBox != nullptr)
+				{
+					HandleButtonClick(game, hoveredBox->name);
+				}
+
+				game.SetSoftDrop(leftMouseIsDown && hoveredBox != nullptr && hoveredBox->name == "button_down");
+			}
+
+			game.Tick(deltaSeconds);
 
 			// Handed over now, uploaded inside the draw once the swapchain image is acquired.
 			const shaders::RtCamera cameraUniform = camera.MakeUniform(renderBase->GetAspect(windowId), aaEnabled);
