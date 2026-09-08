@@ -22,12 +22,17 @@ Logger::Logger(LogCreateInfo logInit)
 
 Logger::~Logger()
 {
+	Stop();
 	file_.close();
 }
 
 void Logger::Stop()
 {
-	running_ = false;
+	if (!running_.exchange(false))
+	{
+		return;
+	}
+
 	queue_command_->ForceStop();
 	future_run_.get();
 }

@@ -354,11 +354,14 @@ int main()
 		glfwDestroyWindow(window);
 		glfwTerminate();
 
+		LoggerInstance::GetInstance()->GetLogger()->Stop();
+
 		return 0;
 	}
 	catch (const std::exception& exception)
 	{
 		std::cerr << "fatal: " << exception.what() << std::endl;
+		LoggerInstance::GetInstance()->GetLogger()->Stop();
 		return 1;
 	}
 }
