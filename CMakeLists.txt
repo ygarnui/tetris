@@ -13,10 +13,13 @@ if (MSVC)
     add_compile_options(/MP)
 endif()
 
+enable_testing()
+
 # order matters: vulkan_renderer reads ${RenderBase_SOURCE_DIR} at configure time
 add_subdirectory(utils/utils)
 add_subdirectory(utils/logger)
 add_subdirectory(render_base)
 add_subdirectory(image_loader)
 add_subdirectory(vulkan_renderer)
+add_subdirectory(game_logic)
 add_subdirectory(app)
