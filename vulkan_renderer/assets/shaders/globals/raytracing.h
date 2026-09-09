@@ -16,7 +16,7 @@
 // 0 disables reflections entirely, 1 gives a single reflected image, higher values show
 // reflections inside reflections. Shadows and mirror reflections are deterministic, so
 // raising this does not add noise, only cost.
-#define MAX_BOUNCES 1
+#define MAX_BOUNCES 2
 
 #define AA_SAMPLES 8
 

@@ -228,7 +228,7 @@ void Scene::createSpheres()
 	const glm::vec3 centerFloorLampStand = 	glm::vec3(center.x, 0.0f, 0.0f) + 
 											glm::vec3(roomSize.x, 0.0f, 0.0f) / 6.0f + 
 											glm::vec3(0.0f, legHeight, 0.0f);
-	spheres_.push_back({ "floor_lamp", centerFloorLampStand + glm::vec3(0.0f, legHeight + diameter / 2.0f, 0.0f), {diameter, diameter, diameter}, lamp, 0.08f });
+	spheres_.push_back({ "floor_lamp", centerFloorLampStand + glm::vec3(0.0f, legHeight + diameter / 2.0f, 0.0f), {diameter, diameter, diameter}, lamp, 0.80f });
 }
 
 const Box* Scene::PickBox(const Ray& ray) const

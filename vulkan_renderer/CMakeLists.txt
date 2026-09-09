@@ -214,8 +214,12 @@ set(SRC
 	assets/shaders/globals/convert_uint_to_vec4.h
 	assets/shaders/globals/globals.h
 	assets/shaders/globals/node.h
+	assets/shaders/globals/phong.h
+	assets/shaders/globals/raytracing.h
 
-	
+	assets/shaders/raytracing.rgen
+	assets/shaders/raytracing.rmiss
+	assets/shaders/raytracing.rchit
 
 
 
@@ -244,6 +248,16 @@ set(SRC
 )
 
 source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${SRC})
+
+# .rgen/.rmiss/.rchit aren't extensions CMake recognises as C++ sources, so without this the
+# generator either skips them or feeds them to the C++ compiler. They are only listed so they
+# show up in the IDE for editing - reader_shader.cpp compiles them itself, at runtime, via shaderc.
+set_source_files_properties(
+	assets/shaders/raytracing.rgen
+	assets/shaders/raytracing.rmiss
+	assets/shaders/raytracing.rchit
+	PROPERTIES HEADER_FILE_ONLY TRUE
+)
 
 add_library(${PROJECT_NAME} STATIC ${SRC})
 add_library(VKRENDERER ALIAS ${PROJECT_NAME})
