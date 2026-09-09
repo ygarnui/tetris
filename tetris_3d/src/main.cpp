@@ -209,18 +209,20 @@ int main()
 		managerCommandBuffer->AddDrawcallInCommandBuffer(windowId, drawcallId, commandBufferId);
 		managerCommandBuffer->AddToDrawingQueue(windowId, commandBufferId, render::DrawPriority::First);
 
-		std::cout << "scene: " << scene.GetBoxes().size() << " boxes, "
-			<< "bounces: " << MAX_BOUNCES << std::endl;
-		std::cout << "WASD to walk." << std::endl;
-		std::cout << "Hold right mouse button to look." << std::endl;
-		std::cout << "Hold left mouse button to click button." << std::endl;
-		std::cout << "1 - enabling / disabling anti - aliasing." << std::endl;
-		std::cout << "Esc to quit" << std::endl;
+		LOG(Loglvl::info, "scene: ", scene.GetBoxes().size(), " boxes");
+		LOG(Loglvl::info, "bounces: ", MAX_BOUNCES);
+		LOG(Loglvl::info, "WASD to walk.");
+		LOG(Loglvl::info, "Hold right mouse button to look.");
+		LOG(Loglvl::info, "Hold left mouse button to click button.");
+		LOG(Loglvl::info, "1 - enabling / disabling anti - aliasing.");
+		LOG(Loglvl::info, "Esc to quit.");
 		
-		std::cout << "The Tetris3D and GameLogic projects were written as part of a test assignment.\
-			The projects ImageLoader, Logger, RenderBase, Util, VulkanRenderBase were written by me much earlier.\
-			RenderBase and VulkanRenderBase were previously unable to use ray traced, and were modified to use it.\
-			Not all of their code is needed to run the app." << std::endl;
+		LOG(Loglvl::info, "/******************************/");
+		LOG(Loglvl::info, "    The Tetris3D and GameLogic projects were written as part of a test assignment. ");
+		LOG(Loglvl::info, "    The projects ImageLoader, Logger, RenderBase, Util, VulkanRenderBase were written by me much earlier.");
+		LOG(Loglvl::info, "    RenderBase and VulkanRenderBase were previously unable to use ray traced, and were modified to use it.");
+		LOG(Loglvl::info, "    Not all of their code is needed to run the app.");
+		LOG(Loglvl::info, "/******************************/");
 
 		// Tell the renderer the new size so the swapchain is rebuilt against it. The actual
 		// recreation happens inside the draw when the swapchain reports itself out of date.
