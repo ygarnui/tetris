@@ -204,11 +204,16 @@ void Scene::createBoxes()
 	
 	
 
-	// Only the table blocks movement; everything else stands on top of it.
+	constexpr float lampBulbDiameter = 0.30f;
+	const float lampBlockerRadius = lampBulbDiameter * 0.5f;
+
 	blockers_.clear();
 	blockers_.push_back({
 		{ -table_half_width, 0.0f, -table_half_depth },
 		{  table_half_width, table_top_y,  table_half_depth } });
+	blockers_.push_back({
+		{ centerFloorLampStand.x - lampBlockerRadius, 0.0f, centerFloorLampStand.z - lampBlockerRadius },
+		{ centerFloorLampStand.x + lampBlockerRadius, table_top_y, centerFloorLampStand.z + lampBlockerRadius } });
 }
 
 void Scene::createSpheres()
