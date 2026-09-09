@@ -34,7 +34,7 @@ namespace render
 		LOG(Loglvl::debug, "[ManagerDevice::~ManagerDevice]");
 	}
 
-	void ManagerDevice::Init(std::shared_ptr<DataInstance> instance)
+	void ManagerDevice::Init(std::shared_ptr<DataInstance> instance, const std::vector<const char*>& requiredExtensions)
 	{
 		instance_ = instance;
 
@@ -46,6 +46,8 @@ namespace render
 			return;
 		}
 
+		bool foundPriorityDevice = false;
+
 		for (size_t i = 0; i < physical_devices_.size(); i++)
 		{
 			const auto id = GeneratorId::GenerateUniqueId<PhysicalDeviceId>(i);
@@ -53,13 +55,34 @@ namespace render
 			vkGetPhysicalDeviceProperties(physical_devices_[id], &physicalDeviceDetails.vk_properties);
 			CreatorPhysicalDevice::PrintInfo(physicalDeviceDetails.vk_properties);
 
-			if (physicalDeviceDetails.vk_properties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+			if (foundPriorityDevice)
+			{
+				continue;
+			}
+
+			// No window/surface exists yet at this point, so this only checks what can be known
+			// without one: device extensions (ray tracing included) and a graphics queue family.
+			// AddWindow re-checks the chosen device against the real surface later via
+			// IsPhysicalDeviceSuitable, once one exists.
+			PhysicalDeviceProperties properties{};
+			const bool suitable = FilterSuitableDevices::CheckPhysicalDevice(
+				physical_devices_[id],
+				nullptr,
+				requiredExtensions,
+				DataSwapchainSupportDetails{},
+				properties);
+
+			if (suitable)
 			{
 				priority_device_id_ = id;
+				foundPriorityDevice = true;
 			}
 		}
 
-		priority_device_id_ = GeneratorId::GenerateUniqueId<PhysicalDeviceId>(0);
+		if (!foundPriorityDevice)
+		{
+			LOGEXC(std::runtime_error, "[ManagerDevice::Init] No physical device supports the required extensions (ray tracing included)!");
+		}
 	}
 
 	size_t ManagerDevice::GetCountPhysicalDevice() const noexcept

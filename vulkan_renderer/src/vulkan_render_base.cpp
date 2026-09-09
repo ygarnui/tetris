@@ -343,7 +343,7 @@ namespace render
 
 		manager_window_ = ManagerWindow::Get();
 		manager_device_ = ManagerDevice::Get();
-		manager_device_->Init(instance_);
+		manager_device_->Init(instance_, requiredDeviceExtensions());
 		manager_surface_ = ManagerSurface::Get();
 		manager_swapchain_ = ManagerSwapchain::Get();
 

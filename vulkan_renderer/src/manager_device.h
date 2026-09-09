@@ -17,8 +17,17 @@ namespace render
 		static std::shared_ptr<ManagerDevice>& Get();
 
 		~ManagerDevice();
-		
-		void Init(std::shared_ptr<DataInstance> instance);
+
+		/*!
+		\brief Enumerate physical devices and pick the priority one.
+		\param[in] instance the Vulkan instance to enumerate physical devices from
+		\param[in] requiredExtensions device extensions the app cannot run without (ray tracing
+		included) - the priority device is the first enumerated physical device that supports
+		all of them. Suitability re-checked against the real surface later in
+		IsPhysicalDeviceSuitable, once one exists.
+		\throw runtime_error if no physical device supports requiredExtensions
+		*/
+		void Init(std::shared_ptr<DataInstance> instance, const std::vector<const char*>& requiredExtensions);
 
 		ManagerDevice(const ManagerDevice&) = delete;
 		ManagerDevice(ManagerDevice&&) = delete;
