@@ -27,12 +27,11 @@ namespace render
 
 		[[nodiscard]] static VkMemoryRequirements GetImageMemoryRequirements(std::shared_ptr<DataImage> image);
 		/*!
-		\brief create new DeviceMemoryData
+		\brief create new DeviceMemoryData via the device's VMA allocator
 		\param[in] properties memory allocation settings, use default: VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT
-		\param[in] physicalDevice the device on which the memory will be allocated
+		\param[in] physicalDevice unused - kept so callers threading it through don't need to change;
+		VMA already knows the physical device via the allocator stored on DataDevice
 		\param[in] buffer the buffer for which memory will be allocated
-		\param[in] allocateFlags extra allocation flags, pass VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT
-		for memory of a buffer whose device address will be queried
 		\return smart pointer to the created DeviceMemoryData
 		\throw runtime_error if it failed to create a DeviceMemoryData
 		*/
@@ -40,8 +39,7 @@ namespace render
 			const VkMemoryRequirements& memRequirements,
 			const VkMemoryPropertyFlags properties,
 			VkPhysicalDevice physicalDevice,
-			std::shared_ptr<DataDevice> device,
-			const VkMemoryAllocateFlags allocateFlags = 0);
+			std::shared_ptr<DataDevice> device);
 
 		static void BindBufferMemory(
 			std::shared_ptr<DataBuffer> buffer,
@@ -54,8 +52,7 @@ namespace render
 		[[nodiscard]] static std::shared_ptr<DataDeviceMemory> CreateDeviceMemoryAndBindBuffer(
 			std::shared_ptr<DataBuffer> buffer,
 			const VkMemoryPropertyFlags properties,
-			VkPhysicalDevice physicalDevice,
-			const VkMemoryAllocateFlags allocateFlags = 0);
+			VkPhysicalDevice physicalDevice);
 
 		/*!
 		\brief Get the device address of a buffer.
@@ -111,10 +108,5 @@ namespace render
 			VkQueue graphicsQueue,
 			VkDevice logicalDevice,
 			VkCommandPool commandPool);
-		
-		[[nodiscard]] static uint32_t FindMemoryType(
-			VkPhysicalDevice physicalDevice,
-			uint32_t typeFilter,
-			VkMemoryPropertyFlags properties);
 	};
 }

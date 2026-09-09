@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vulkan/vulkan_core.h>
+#include <vma/vk_mem_alloc.h>
 
 #include <filesystem>
 #include <memory>
@@ -30,6 +31,7 @@ struct DataDevice
 {
 	VkDevice device;
 	std::shared_ptr<DataInstance> instance;
+	VmaAllocator allocator = VK_NULL_HANDLE;
 };
 
 struct DataSwapchain
@@ -107,7 +109,7 @@ struct DataFence
 struct DataDeviceMemory
 {
 	uint64_t size;
-	VkDeviceMemory buffer_memory;
+	VmaAllocation allocation = VK_NULL_HANDLE;
 	std::shared_ptr<DataDevice> device;
 };
 

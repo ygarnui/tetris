@@ -1,4 +1,5 @@
 #include "creator_logical_device.h"
+#include "struct_base_data.h"
 
 #include <logger_instance.h>
 
@@ -92,6 +93,9 @@ std::shared_ptr<DataDevice> CreatorLogicalDevice::CreateLogicalDevice(
 	}
 
 	std::shared_ptr<DataDevice> device(new DataDevice{ {}, instance }, [](DataDevice* p) {
+		// The allocator holds pooled VkDeviceMemory blocks carved out of this device, so it
+		// must be torn down first - vkDestroyDevice requires every child object gone already.
+		vmaDestroyAllocator(p->allocator);
 		vkDestroyDevice(p->device, nullptr);
 		delete p;
 	});
@@ -101,6 +105,24 @@ std::shared_ptr<DataDevice> CreatorLogicalDevice::CreateLogicalDevice(
 	{
 		LOGEXC(std::runtime_error, "[CreatorLogicalDevice::CreateLogicalDevice] failed to create logical device!");
 	}
+
+	VmaAllocatorCreateInfo allocatorCreateInfo{};
+	allocatorCreateInfo.physicalDevice = physicalDevice;
+	allocatorCreateInfo.device = device->device;
+	allocatorCreateInfo.instance = instance->instance;
+	allocatorCreateInfo.vulkanApiVersion = VK_API_VERSION_1_2;
+
+	if (accelerationStructureRequested)
+	{
+		allocatorCreateInfo.flags |= VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+	}
+
+	const VkResult vmaRes = vmaCreateAllocator(&allocatorCreateInfo, &device->allocator);
+	if (vmaRes != VK_SUCCESS)
+	{
+		LOGEXC(std::runtime_error, "[CreatorLogicalDevice::CreateLogicalDevice] failed to create the VMA allocator!");
+	}
+
 	return device;
 }
 

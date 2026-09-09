@@ -33,8 +33,7 @@ BufferWithMemory CreatorAccelerationStructure::CreateDeviceAddressBuffer(
 	result.device_memory = CreatorBuffer::CreateDeviceMemoryAndBindBuffer(
 		result.buffer,
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		context.physical_device,
-		VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT);
+		context.physical_device);
 
 	if (data)
 	{

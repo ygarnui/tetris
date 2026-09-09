@@ -65,8 +65,7 @@ std::shared_ptr<DataDeviceMemory> CreatorBuffer::CreateDeviceMemory(
 	const VkMemoryRequirements& memRequirements,
 	const VkMemoryPropertyFlags properties,
 	VkPhysicalDevice physicalDevice,
-	std::shared_ptr<DataDevice> device,
-	const VkMemoryAllocateFlags allocateFlags)
+	std::shared_ptr<DataDevice> device)
 {
 	std::shared_ptr<DataDeviceMemory> deviceMemory(
 		new DataDeviceMemory{
@@ -76,32 +75,20 @@ std::shared_ptr<DataDeviceMemory> CreatorBuffer::CreateDeviceMemory(
 		},
 		[](DataDeviceMemory* p)
 		{
-			vkFreeMemory(p->device->device, p->buffer_memory, nullptr);
+			vmaFreeMemory(p->device->allocator, p->allocation);
 			delete p;
 		}
 	);
 
-	VkMemoryAllocateInfo allocInfo{};
-	allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocInfo.allocationSize = memRequirements.size;
+	VmaAllocationCreateInfo allocCreateInfo{};
+	allocCreateInfo.requiredFlags = properties;
 
-	// Memory backing a buffer that is queried with vkGetBufferDeviceAddress has to be
-	// allocated with the matching flag, otherwise the address query is invalid.
-	VkMemoryAllocateFlagsInfo allocateFlagsInfo{};
-	if (allocateFlags != 0)
-	{
-		allocateFlagsInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO;
-		allocateFlagsInfo.flags = allocateFlags;
-		allocInfo.pNext = &allocateFlagsInfo;
-	}
-
-	// TO DO optimize
-	allocInfo.memoryTypeIndex = FindMemoryType(
-		physicalDevice,
-		memRequirements.memoryTypeBits,
-		properties);
-
-	auto res = vkAllocateMemory(device->device, &allocInfo, nullptr, &deviceMemory->buffer_memory);
+	const VkResult res = vmaAllocateMemory(
+		device->allocator,
+		&memRequirements,
+		&allocCreateInfo,
+		&deviceMemory->allocation,
+		nullptr);
 
 	if (res != VK_SUCCESS) {
 		LOGEXC(std::runtime_error, "[CreatorBuffer::CreateDeviceMemory] failed to allocate buffer memory");
@@ -114,29 +101,27 @@ void CreatorBuffer::BindBufferMemory(
 	std::shared_ptr<DataBuffer> buffer,
 	std::shared_ptr<DataDeviceMemory> deviceMemory)
 {
-	vkBindBufferMemory(buffer->device->device, buffer->buffer, deviceMemory->buffer_memory, 0);
+	vmaBindBufferMemory(buffer->device->allocator, deviceMemory->allocation, buffer->buffer);
 }
 
 void CreatorBuffer::BindImageMemory(
 	std::shared_ptr<DataImage> image,
 	std::shared_ptr<DataDeviceMemory> deviceMemory)
 {
-	vkBindImageMemory(image->device->device, image->image, deviceMemory->buffer_memory, 0);
+	vmaBindImageMemory(image->device->allocator, deviceMemory->allocation, image->image);
 }
 
 std::shared_ptr<DataDeviceMemory> CreatorBuffer::CreateDeviceMemoryAndBindBuffer(
 	std::shared_ptr<DataBuffer> buffer,
 	const VkMemoryPropertyFlags properties,
-	VkPhysicalDevice physicalDevice,
-	const VkMemoryAllocateFlags allocateFlags)
+	VkPhysicalDevice physicalDevice)
 {
 	auto requirements = CreatorBuffer::GetBufferMemoryRequirements(buffer);
 	auto deviceMemory = CreatorBuffer::CreateDeviceMemory(
 		requirements,
 		properties,
 		physicalDevice,
-		buffer->device,
-		allocateFlags);
+		buffer->device);
 
 	CreatorBuffer::BindBufferMemory(buffer, deviceMemory);
 
@@ -174,26 +159,20 @@ void* CreatorBuffer::Map(
 	const uint64_t offset,
 	std::shared_ptr<DataDeviceMemory> deviceMemory)
 {
-	void* mappedData;
-	const VkResult result = vkMapMemory(
-		deviceMemory->device->device,
-		deviceMemory->buffer_memory,
-		offset,
-		size,
-		0,
-		&mappedData);
+	void* mappedData = nullptr;
+	const VkResult result = vmaMapMemory(deviceMemory->device->allocator, deviceMemory->allocation, &mappedData);
 
 	if (result != VK_SUCCESS)
 	{
 		LOGEXC(std::runtime_error, "[CreatorBuffer::Map] failed to map memory");
 	}
 
-	return mappedData;
+	return static_cast<uint8_t*>(mappedData) + offset;
 }
 
 void CreatorBuffer::Unmap(std::shared_ptr<DataDeviceMemory> deviceMemory)
 {
-	vkUnmapMemory(deviceMemory->device->device, deviceMemory->buffer_memory);
+	vmaUnmapMemory(deviceMemory->device->allocator, deviceMemory->allocation);
 }
 
 void CreatorBuffer::Write(
@@ -201,14 +180,8 @@ void CreatorBuffer::Write(
 	const uint64_t size,
 	std::shared_ptr<DataDeviceMemory> deviceMemory)
 {
-	void* mappedData;
-	const VkResult result = vkMapMemory(
-		deviceMemory->device->device,
-		deviceMemory->buffer_memory,
-		0,
-		size,
-		0,
-		&mappedData);
+	void* mappedData = nullptr;
+	const VkResult result = vmaMapMemory(deviceMemory->device->allocator, deviceMemory->allocation, &mappedData);
 
 	if (result != VK_SUCCESS)
 	{
@@ -217,7 +190,7 @@ void CreatorBuffer::Write(
 
 	memcpy(mappedData, data, size);
 
-	vkUnmapMemory(deviceMemory->device->device, deviceMemory->buffer_memory);
+	vmaUnmapMemory(deviceMemory->device->allocator, deviceMemory->allocation);
 }
 
 VkCommandBuffer CreatorBuffer::BeginSingleTimeCommands(
@@ -284,25 +257,6 @@ void CreatorBuffer::EndSingleTimeCommands(
 	vkQueueWaitIdle(graphicsQueue);
 
 	vkFreeCommandBuffers(logicalDevice, commandPool, 1, &commandBuffer);
-}
-
-uint32_t CreatorBuffer::FindMemoryType(
-	VkPhysicalDevice physicalDevice,
-	uint32_t typeFilter,
-	VkMemoryPropertyFlags properties)
-{
-	VkPhysicalDeviceMemoryProperties memProperties;
-	vkGetPhysicalDeviceMemoryProperties(physicalDevice, &memProperties);
-
-	for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
-		if ((typeFilter & (1 << i)) && 
-			(memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
-			return i;
-		}
-	}
-
-	LOGEXC(std::runtime_error, "[CreatorBuffer::FindMemoryType] failed to find suitable memory type");
-	return -1;
 }
 
 }

@@ -111,10 +111,12 @@ set(SRC
 	
 	src/utils/guard_time.h
 	src/utils/guard_time.cpp
-	
+
 	src/utils/manager_time.h
 	src/utils/manager_time.cpp
-	
+
+	src/vma_implementation.cpp
+
 	src/converter_description.cpp
 	src/converter_description.h
 
@@ -337,6 +339,9 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 #supress warnings
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "MSVC")
 	target_compile_options(${PROJECT_NAME} PRIVATE /WX /W3)
+	# VMA_IMPLEMENTATION expands into third-party code this project doesn't control - don't hold
+	# it to /WX.
+	set_source_files_properties(src/vma_implementation.cpp PROPERTIES COMPILE_OPTIONS "/W0")
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")

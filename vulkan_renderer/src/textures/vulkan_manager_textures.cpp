@@ -494,9 +494,8 @@ namespace render
 		VkSubresourceLayout subResourceLayout;
 		vkGetImageSubresourceLayout(texture.image_data->device->device, texture.image_data->image, &subResource, &subResourceLayout);
 
-		uint8_t* data = nullptr;
-		vkMapMemory(texture.image_data->device->device, texture.device_memory_data->buffer_memory, 0, VK_WHOLE_SIZE, 0, (void**)&data);
-		data += subResourceLayout.offset;
+		uint8_t* data = static_cast<uint8_t*>(
+			CreatorBuffer::Map(VK_WHOLE_SIZE, subResourceLayout.offset, texture.device_memory_data));
 
 		if (strideBytes)
 		{
